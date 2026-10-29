@@ -9,7 +9,6 @@ interface Project {
   categoryColor: string;
   description: string;
   image: string;
-  gradient: string;
   codeLink: string;
   webLink: string;
 }
@@ -25,7 +24,6 @@ const Projects: React.FC = () => {
       categoryColor: '#f59e0b',
       description: 'Plataforma completa para comprar y vender cuentas de servicios streaming.',
       image: `${import.meta.env.BASE_URL}projects/tienda-streaming.png`,
-      gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
       codeLink: 'https://github.com/jesusmandev/platform-to-sell-streaming-accounts.git',
       webLink: 'https://jesusmandev.github.io/platform-to-sell-streaming-accounts/',
     },
@@ -36,7 +34,6 @@ const Projects: React.FC = () => {
       categoryColor: '#f59e0b',
       description: 'Menú gastronómico con platos del mundo y diseño llamativo.',
       image: `${import.meta.env.BASE_URL}projects/menu-comida.png`,
-      gradient: 'linear-gradient(135deg, #2d1b00 0%, #4a2c0a 50%, #6b3a0a 100%)',
       codeLink: 'https://github.com/jesusmandev/WorldMenu.git',
       webLink: 'https://jesusmandev.github.io/WorldMenu/',
     },
@@ -47,7 +44,6 @@ const Projects: React.FC = () => {
       categoryColor: '#22c55e',
       description: 'Juego clásico con múltiples niveles de dificultad.',
       image: `${import.meta.env.BASE_URL}projects/juego-ahorcado.png`,
-      gradient: 'linear-gradient(135deg, #0a2a1a 0%, #1a3a2a 50%, #0d4a2a 100%)',
       codeLink: 'https://github.com/jesusmandev/Hangman-game.git',
       webLink: 'https://jesusmandev.github.io/Hangman-game/',
     },
@@ -58,7 +54,6 @@ const Projects: React.FC = () => {
       categoryColor: '#a855f7',
       description: 'Aplicación para buscar y visualizar GIFs consumiendo una API externa.',
       image: `${import.meta.env.BASE_URL}projects/app-gifs.png`,
-      gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #3d1f6e 100%)',
       codeLink: 'https://github.com/jesusmandev/GIF-app.git',
       webLink: 'https://jesusmandev.github.io/GIF-app/',
     },
@@ -69,7 +64,6 @@ const Projects: React.FC = () => {
       categoryColor: '#ec4899',
       description: 'Tarjeta interactiva animada con efectos CSS.',
       image: `${import.meta.env.BASE_URL}projects/tarjeta-san-valentin.png`,
-      gradient: 'linear-gradient(135deg, #2e0a1a 0%, #4e1b2d 50%, #6e1f3d 100%)',
       codeLink: 'https://github.com/jesusmandev/valentine-card.git',
       webLink: 'https://jesusmandev.github.io/valentine-card/',
     },
@@ -80,7 +74,6 @@ const Projects: React.FC = () => {
       categoryColor: '#6366f1',
       description: 'Simulador del examen Prelcfes con temporizador y puntuación.',
       image: `${import.meta.env.BASE_URL}projects/simulador-prelcfes.png`,
-      gradient: 'linear-gradient(135deg, #0a0a2e 0%, #1b1b4e 50%, #1f1f6e 100%)',
       codeLink: 'https://github.com/jesusmandev/simulator.git',
       webLink: 'https://jesusmandev.github.io/simulator/',
     },
@@ -91,7 +84,6 @@ const Projects: React.FC = () => {
       categoryColor: '#f59e0b',
       description: 'Calculadora funcional con diseño limpio y operaciones completas.',
       image: `${import.meta.env.BASE_URL}projects/calculadora.png`,
-      gradient: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 50%, #3a3a3a 100%)',
       codeLink: 'https://github.com/jesusmandev/calculadora.git',
       webLink: 'https://jesusmandev.github.io/calculadora/',
     },
@@ -102,7 +94,6 @@ const Projects: React.FC = () => {
       categoryColor: '#f59e0b',
       description: 'Landing page sobre la cultura del café colombiano.',
       image: `${import.meta.env.BASE_URL}projects/cafe.png`,
-      gradient: 'linear-gradient(135deg, #2d1b00 0%, #3a2a0a 50%, #5a3a0a 100%)',
       codeLink: 'https://github.com/jesusmandev/CAFES-COLOMBIANOS.git',
       webLink: 'https://jesusmandev.github.io/CAFES-COLOMBIANOS/',
     },
@@ -114,7 +105,6 @@ const Projects: React.FC = () => {
       description:
         'Landing page atractiva para un restaurante de hamburguesas con diseño moderno y apetitoso.',
       image: `${import.meta.env.BASE_URL}projects/hamburguesa.png`,
-      gradient: 'linear-gradient(135deg, #4a1a0a 0%, #8b2500 50%, #c43e00 100%)',
       codeLink: 'https://github.com/jesusmandev/burger-landing.git',
       webLink: 'https://agent-6a1ac44517acbb0fc92284c3--burger-jesu.netlify.app/',
     },
@@ -126,7 +116,6 @@ const Projects: React.FC = () => {
       description:
         'Landing page dinámica para la marca H2R de motocicletas con efectos visuales impactantes.',
       image: `${import.meta.env.BASE_URL}projects/moto.png`,
-      gradient: 'linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #2a3a6a 100%)',
       codeLink: 'https://github.com/jesusmandev/landing-page-of-motorbike.git',
       webLink: 'https://jesusmandev.github.io/landing-page-of-motorbike/',
     },
