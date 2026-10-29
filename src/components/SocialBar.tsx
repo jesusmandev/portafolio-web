@@ -3,7 +3,7 @@ import React from 'react';
 const SocialBar: React.FC = () => {
   return (
     <div 
-      className="absolute top-1/2 -translate-y-1/2 left-0 z-40 hidden xl:flex flex-col animate-fade-right"
+      className="absolute top-[74%] -translate-y-1/2 left-0 z-40 hidden xl:flex flex-col animate-fade-right"
     >
       <div 
         className="relative flex flex-col items-center justify-between py-8 w-16 h-[290px]"
