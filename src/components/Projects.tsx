@@ -1,186 +1,306 @@
-import React, { useEffect, useRef } from 'react';
-import { LocalizedText } from '../hooks/useLanguage';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import Stack from './Stack';
+import Masonry from './Masonry';
+
+interface Project {
+  id: number;
+  title: string;
+  category: string;
+  categoryColor: string;
+  description: string;
+  image: string | null;
+  gradient: string;
+  codeLink: string;
+  webLink: string;
+}
 
 const Projects: React.FC = () => {
-  const sectionRef = useRef<HTMLElement>(null);
-  const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('animate-in');
-        } else {
-          entry.target.classList.remove('animate-in');
-        }
-      });
-    }, {
-      threshold: 0.15,
-      rootMargin: '0px 0px -30px 0px'
-    });
-
-    const header = sectionRef.current?.querySelector('.section-header');
-    if (header) observer.observe(header);
-
-    const cardObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          (entry.target as HTMLElement).style.opacity = '1';
-          (entry.target as HTMLElement).style.transform = 'translateY(0) scale(1)';
-          cardObserver.unobserve(entry.target);
-        }
-      });
-    }, {
-      threshold: 0.08,
-      rootMargin: '0px 0px -40px 0px'
-    });
-
-    cardsRef.current.forEach(card => {
-      if (card) {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(30px) scale(0.95)';
-        card.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
-        cardObserver.observe(card);
-      }
-    });
-
-    return () => {
-      observer.disconnect();
-      cardObserver.disconnect();
-    };
-  }, []);
-
-  const handleClick = (e: React.MouseEvent, url?: string) => {
-    if ((e.target as HTMLElement).closest('a') || (e.target as HTMLElement).closest('.btn')) return;
-    if (url) {
-      window.open(url, '_blank');
-    }
-  };
-
-  const projects = [
+  const projects: Project[] = [
     {
-      id: '01',
-      url: 'https://jesusmandev.github.io/platform-to-sell-streaming-accounts/',
-      featured: true,
-      tag: <LocalizedText en="Web App" es="Aplicación Web" fr="App Web" de="Web App" pt="App Web" />,
-      title: <LocalizedText en="Streaming Account Store" es="Tienda de Cuentas Streaming" fr="Boutique Streaming" de="Streaming Shop" pt="Loja Streaming" />,
-      desc: <LocalizedText en="Full platform to buy and sell streaming service accounts. Complete UI with cart and listings." es="Plataforma completa para comprar y vender cuentas de servicios streaming." fr="Plateforme complète pour acheter et vendre des comptes streaming." de="Vollständige Plattform für Streaming-Konten." pt="Plataforma completa para comprar e vender contas." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 1,
+      title: "Tienda de Cuentas Streaming",
+      category: "APLICACIÓN WEB",
+      categoryColor: "#f59e0b",
+      description: "Plataforma completa para comprar y vender cuentas de servicios streaming.",
+      image: `${import.meta.env.BASE_URL}projects/tienda-streaming.png`,
+      gradient: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+      codeLink: "https://github.com/jesusmandev/platform-to-sell-streaming-accounts.git",
+      webLink: "https://jesusmandev.github.io/platform-to-sell-streaming-accounts/"
     },
     {
-      id: '02',
-      url: 'https://jesusmandev.github.io/Hangman-game/',
-      featured: false,
-      tag: 'Game',
-      title: <LocalizedText en="Hangman Game" es="Juego del Ahorcado" fr="Jeu du Pendu" de="Galgenmännchen" pt="Jogo da Forca" />,
-      desc: <LocalizedText en="Classic hangman game with multiple difficulty levels." es="Juego clásico con múltiples niveles de dificultad." fr="Jeu classique avec plusieurs niveaux." de="Klassisches Spiel mit mehreren Schwierigkeitsgraden." pt="Jogo clássico com vários níveis." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 2,
+      title: "Menú de Comida Mundial",
+      category: "COMIDA",
+      categoryColor: "#f59e0b",
+      description: "Menú gastronómico con platos del mundo y diseño llamativo.",
+      image: `${import.meta.env.BASE_URL}projects/menu-comida.png`,
+      gradient: "linear-gradient(135deg, #2d1b00 0%, #4a2c0a 50%, #6b3a0a 100%)",
+      codeLink: "https://github.com/jesusmandev/WorldMenu.git",
+      webLink: "https://jesusmandev.github.io/WorldMenu/"
     },
     {
-      id: '03',
-      url: 'https://jesusmandev.github.io/valentine-card/',
-      featured: false,
-      tag: <LocalizedText en="Design" es="Diseño" fr="Design" de="Design" pt="Design" />,
-      title: <LocalizedText en="Valentine's Day Card" es="Tarjeta de San Valentín" fr="Carte Saint-Valentin" de="Valentinstagkarte" pt="Cartão Dia dos Namorados" />,
-      desc: <LocalizedText en="Interactive animated card with CSS effects." es="Tarjeta interactiva animada con efectos CSS." fr="Carte animée interactive avec effets CSS." de="Interaktive animierte Karte mit CSS-Effekten." pt="Cartão animado interativo com efeitos CSS." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 3,
+      title: "Juego del Ahorcado",
+      category: "GAME",
+      categoryColor: "#22c55e",
+      description: "Juego clásico con múltiples niveles de dificultad.",
+      image: `${import.meta.env.BASE_URL}projects/juego-ahorcado.png`,
+      gradient: "linear-gradient(135deg, #0a2a1a 0%, #1a3a2a 50%, #0d4a2a 100%)",
+      codeLink: "https://github.com/jesusmandev/Hangman-game.git",
+      webLink: "https://jesusmandev.github.io/Hangman-game/"
     },
     {
-      id: '04',
-      url: 'https://jesusmandev.github.io/calculadora/',
-      featured: false,
-      tag: <LocalizedText en="Utility" es="Utilidad" fr="Utilitaire" de="Werkzeug" pt="Utilitário" />,
-      title: <LocalizedText en="Calculator" es="Calculadora" fr="Calculatrice" de="Rechner" pt="Calculadora" />,
-      desc: <LocalizedText en="Functional calculator with clean UI." es="Calculadora funcional con diseño limpio y operaciones completas." fr="Calculatrice fonctionnelle avec interface claire." de="Funktionsfähiger Rechner mit sauberem UI." pt="Calculadora funcional com design limpo." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 4,
+      title: "Aplicación de GIFs",
+      category: "APP",
+      categoryColor: "#a855f7",
+      description: "Aplicación para buscar y visualizar GIFs consumiendo una API externa.",
+      image: `${import.meta.env.BASE_URL}projects/app-gifs.png`,
+      gradient: "linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #3d1f6e 100%)",
+      codeLink: "https://github.com/jesusmandev/GIF-app.git",
+      webLink: "https://jesusmandev.github.io/GIF-app/"
     },
     {
-      id: '05',
-      url: 'https://jesusmandev.github.io/WorldMenu/',
-      featured: false,
-      tag: <LocalizedText en="Food" es="Comida" fr="Gastronomie" de="Essen" pt="Comida" />,
-      title: <LocalizedText en="World Food Menu" es="Menú de Comida Mundial" fr="Menu Mondial" de="Weltmenü" pt="Menu Mundial" />,
-      desc: <LocalizedText en="Gastronomic menu showcasing dishes from around the world." es="Menú gastronómico con platos de todo el mundo y diseño llamativo." fr="Menu gastronomique avec des plats du monde entier." de="Gastronomisches Menü mit Gerichten aus aller Welt." pt="Menu gastronômico com pratos de todo o mundo." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 5,
+      title: "Tarjeta de San Valentín",
+      category: "DISEÑO",
+      categoryColor: "#ec4899",
+      description: "Tarjeta interactiva animada con efectos CSS.",
+      image: `${import.meta.env.BASE_URL}projects/tarjeta-san-valentin.png`,
+      gradient: "linear-gradient(135deg, #2e0a1a 0%, #4e1b2d 50%, #6e1f3d 100%)",
+      codeLink: "https://github.com/jesusmandev/valentine-card.git",
+      webLink: "https://jesusmandev.github.io/valentine-card/"
     },
     {
-      id: '06',
-      url: 'https://jesusmandev.github.io/clima-vivo/',
-      featured: false,
-      tag: 'API',
-      title: <LocalizedText en="Weather App" es="Pagina web del Clima" fr="App Météo" de="Wetter App" pt="App Clima" />,
-      desc: <LocalizedText en="Real-time weather app using external API." es="Clima en tiempo real con API externa e íconos dinámicos." fr="Application météo en temps réel." de="Echtzeit-Wetter-App mit externer API." pt="App de clima em tempo real." />,
-      tech: ['HTML', 'CSS', 'JS', 'API']
+      id: 6,
+      title: "Simulador Prelcfes",
+      category: "EDUCACIÓN",
+      categoryColor: "#6366f1",
+      description: "Simulador del examen Prelcfes con temporizador y puntuación.",
+      image: `${import.meta.env.BASE_URL}projects/simulador-prelcfes.png`,
+      gradient: "linear-gradient(135deg, #0a0a2e 0%, #1b1b4e 50%, #1f1f6e 100%)",
+      codeLink: "https://github.com/jesusmandev/simulator.git",
+      webLink: "https://jesusmandev.github.io/simulator/"
     },
     {
-      id: '07',
-      url: 'https://jesusmandev.github.io/simulator/',
-      featured: false,
-      tag: <LocalizedText en="Education" es="Educación" fr="Éducation" de="Bildung" pt="Educação" />,
-      title: <LocalizedText en="ICFES Simulator" es="Simulador PreIcfes" fr="Simulateur ICFES" de="ICFES Simulator" pt="Simulador PreIcfes" />,
-      desc: <LocalizedText en="Pre-ICFES exam simulator with timed questions." es="Simulador del examen PreIcfes con temporizador y puntuación." fr="Simulateur d'examen avec questions chronométrées." de="Prüfungssimulator mit zeitgesteuerten Fragen." pt="Simulador de exame com questões temporizadas." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 7,
+      title: "Calculadora",
+      category: "UTILIDAD",
+      categoryColor: "#f59e0b",
+      description: "Calculadora funcional con diseño limpio y operaciones completas.",
+      image: `${import.meta.env.BASE_URL}projects/calculadora.png`,
+      gradient: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 50%, #3a3a3a 100%)",
+      codeLink: "https://github.com/jesusmandev/calculadora.git",
+      webLink: "https://jesusmandev.github.io/calculadora/"
     },
     {
-      id: '08',
-      url: 'https://jesusmandev.github.io/CAFES-COLOMBIANOS/',
-      featured: false,
-      tag: 'Colombia ☕',
-      title: <LocalizedText en="Colombian Cafés" es="Cafés Colombianos" fr="Cafés Colombiens" de="Kolumbianische Cafés" pt="Cafés Colombianos" />,
-      desc: <LocalizedText en="Landing page showcasing Colombian coffee culture." es="Landing page sobre la cultura del café colombiano." fr="Page d'accueil sur la culture du café colombien." de="Landingpage über kolumbianische Kaffeekultur." pt="Landing page sobre a cultura do café colombiano." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 8,
+      title: "Cafés Colombianos",
+      category: "COLOMBIA ☕",
+      categoryColor: "#f59e0b",
+      description: "Landing page sobre la cultura del café colombiano.",
+      image: `${import.meta.env.BASE_URL}projects/cafe.png`,
+      gradient: "linear-gradient(135deg, #2d1b00 0%, #3a2a0a 50%, #5a3a0a 100%)",
+      codeLink: "https://github.com/jesusmandev/CAFES-COLOMBIANOS.git",
+      webLink: "https://jesusmandev.github.io/CAFES-COLOMBIANOS/"
     },
     {
-      id: '09',
-      url: 'https://jesusmandev.github.io/song/',
-      featured: false,
-      tag: <LocalizedText en="Music" es="Música" fr="Musique" de="Musik" pt="Música" />,
-      title: <LocalizedText en="Music Player" es="Reproductor de Música" fr="Lecteur de Musique" de="Musikplayer" pt="Reprodutor de Música" />,
-      desc: <LocalizedText en="Modern music player with full controls and song visualization." es="Reproductor de música moderno con controles completos y visualización de canciones." fr="Lecteur de musique moderne avec contrôles complets et visualisation des chansons." de="Moderner Musikplayer mit vollständiger Steuerung und Songvisualisierung." pt="Reprodutor de música moderno com controles completos e visualização de músicas." />,
-      tech: ['HTML', 'CSS', 'JS']
+      id: 9,
+      title: "Landing Page de Hamburguesa",
+      category: "LANDING PAGE",
+      categoryColor: "#ef4444",
+      description: "Landing page atractiva para un restaurante de hamburguesas con diseño moderno y apetitoso.",
+      image: `${import.meta.env.BASE_URL}projects/hamburguesa.png`,
+      gradient: "linear-gradient(135deg, #4a1a0a 0%, #8b2500 50%, #c43e00 100%)",
+      codeLink: "https://github.com/jesusmandev/burger-landing.git",
+      webLink: "https://agent-6a1ac44517acbb0fc92284c3--burger-jesu.netlify.app/"
     },
     {
-      id: '10',
-      url: 'https://jesusmandev.github.io/GIF-app/',
-      featured: false,
-      tag: 'App',
-      title: <LocalizedText en="GIF App" es="Aplicación de GIFs" fr="App GIF" de="GIF App" pt="App de GIFs" />,
-      desc: <LocalizedText en="Application to search and view GIFs using an external API." es="Aplicación para buscar y visualizar GIFs consumiendo una API externa." fr="Application pour rechercher et visualiser des GIFs à l'aide d'une API externe." de="Anwendung zum Suchen und Anzeigen von GIFs über eine externe API." pt="Aplicativo para buscar e visualizar GIFs usando uma API externa." />,
-      tech: ['HTML', 'CSS', 'JS', 'API']
+      id: 10,
+      title: "Landing Page de Motocicleta",
+      category: "LANDING PAGE",
+      categoryColor: "#3b82f6",
+      description: "Landing page dinámica para la marca H2R de motocicletas con efectos visuales impactantes.",
+      image: `${import.meta.env.BASE_URL}projects/moto.png`,
+      gradient: "linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #2a3a6a 100%)",
+      codeLink: "https://github.com/jesusmandev/landing-page-of-motorbike.git",
+      webLink: "https://jesusmandev.github.io/landing-page-of-motorbike/"
     }
   ];
 
-  return (
-    <section id="projects" className="projects-section" ref={sectionRef}>
-      <div className="container">
-        <div className="section-header">
-          <span className="section-tag">
-            <LocalizedText en="04. What I've built" es="04. Lo que he creado" fr="04. Mes créations" de="04. Meine Projekte" pt="04. O que construí" />
-          </span>
-          <h2>
-            <LocalizedText en="Projects" es="Proyectos" fr="Projets" de="Projekte" pt="Projetos" />
-          </h2>
-        </div>
-        <div className="projects-grid">
-          {projects.map((proj, i) => (
-            <div 
-              key={proj.id}
-              className={`project-card ${proj.featured ? 'featured' : ''}`}
-              onClick={(e) => handleClick(e, proj.url)}
-              style={{ cursor: 'pointer' }}
-              ref={(el) => { if (el) cardsRef.current[i] = el; }}
-            >
-              <div className="project-number">{proj.id}</div>
-              <div className="project-tag">{proj.tag}</div>
-              <h3>{proj.title}</h3>
-              <p>{proj.desc}</p>
-              <div className="project-tech">
-                {proj.tech.map(t => <span key={t}>{t}</span>)}
-              </div>
-            </div>
-          ))}
+  // Card component reused in both views
+  const ProjectCard = ({ project }: { project: Project }) => (
+    <div className="projects-card">
+      {/* Background image with blur */}
+      <div className="projects-card-bg">
+        {project.image ? (
+          <img
+            src={project.image}
+            alt={project.title}
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="projects-card-bg-gradient"
+            style={{ background: project.gradient }}
+          />
+        )}
+      </div>
+
+      {/* Dark overlay */}
+      <div className="projects-card-overlay" />
+
+      {/* Content */}
+      <div className="projects-card-content">
+        <span
+          className="projects-category"
+          style={{
+            backgroundColor: project.categoryColor,
+            color: '#000'
+          }}
+        >
+          {project.category}
+        </span>
+        <h4 className="projects-title">{project.title}</h4>
+        <p className="projects-description">{project.description}</p>
+
+        {/* Action buttons */}
+        <div className="projects-actions">
+          <a
+            href={project.codeLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="projects-action-btn"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Ver código de ${project.title}`}
+          >
+            {/* Code icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            <span>Código</span>
+          </a>
+          <a
+            href={project.webLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="projects-action-btn"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Ver web de ${project.title}`}
+          >
+            {/* Globe icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            <span>Ver Web</span>
+          </a>
         </div>
       </div>
+    </div>
+  );
+
+  return (
+    <section id="projects" className="relative pt-20">
+      <motion.div
+        className="flex flex-col items-center justify-center mb-16"
+        initial={{ opacity: 0, y: 30, filter: 'blur(10px)' }}
+        whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.7, ease: [0.25, 1, 0.5, 1] }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-[2px] bg-[#2563eb]"></div>
+          <h2 className="text-[#2563eb] font-bold tracking-[0.2em] text-sm uppercase">Portafolio</h2>
+          <div className="w-8 h-[2px] bg-[#2563eb]"></div>
+        </div>
+        <h3 className="text-3xl md:text-5xl font-black text-white">Proyectos Destacados</h3>
+      </motion.div>
+
+      {/* ====== STACKED PREVIEW (visible when NOT expanded) ====== */}
+      {!expanded && (
+        <motion.div
+          className="grid place-items-center w-full mb-8"
+          initial={{ opacity: 0, y: 50, scale: 0.96 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.8, ease: [0.25, 1, 0.5, 1], delay: 0.15 }}
+        >
+          <div className="w-[280px] h-[360px] md:w-[320px] md:h-[400px] relative mx-auto">
+            <Stack
+              randomRotation={true}
+              sensitivity={150}
+              sendToBackOnClick={true}
+              cards={projects.map((project) => (
+                <ProjectCard key={project.id} project={project} />
+              ))}
+              autoplay={true}
+              autoplayDelay={3500}
+              pauseOnHover={true}
+            />
+          </div>
+        </motion.div>
+      )}
+
+      {/* ====== EXPANDED GRID (visible when expanded) ====== */}
+      {expanded && (
+        <div className="w-full mt-12 mb-8 flex justify-center">
+          <div className="w-full max-w-[1200px] mx-auto">
+            <Masonry
+              items={projects.map((project, index) => ({
+                id: project.id,
+                height: index % 3 === 0 ? 380 : index % 3 === 1 ? 340 : 420,
+                content: <ProjectCard project={project} />
+              }))}
+              ease="power3.out"
+              duration={0.7}
+              stagger={0.05}
+              animateFrom="bottom"
+              scaleOnHover
+              hoverScale={0.95}
+              blurToFocus
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Button */}
+      <motion.div
+        className="flex justify-center mt-16"
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-40px' }}
+        transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1], delay: 0.2 }}
+      >
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="projects-view-all"
+        >
+          <span>{expanded ? 'Ver menos' : 'Ver todos los proyectos'}</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`projects-view-all-icon ${expanded ? 'projects-view-all-icon--rotated' : ''}`}
+          >
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </button>
+      </motion.div>
     </section>
   );
 };

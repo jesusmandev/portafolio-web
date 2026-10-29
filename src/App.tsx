@@ -1,131 +1,110 @@
 import React, { useState, useEffect } from 'react';
-import Loader from './components/Loader';
-import ScrollReveal from './components/ScrollReveal';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import About from './components/About';
 import Skills from './components/Skills';
-import Certifications from './components/Certifications';
 import Projects from './components/Projects';
 import Contact from './components/Contact';
-import Footer from './components/Footer';
-import CertModal from './components/CertModal';
 import CVModal from './components/CVModal';
+
+import Footer from './components/Footer';
 import { LanguageProvider } from './hooks/useLanguage';
-import { CursorParticles } from './hooks/useCursor';
-import bgMusic from './assets/music/bg-music.mp3';
 import './index.css';
 
+import IntroScreen from './components/IntroScreen';
+import { AnimatePresence, motion } from 'framer-motion';
+import ScrollVelocity from './components/ScrollVelocity';
+
 const AppContent: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('home');
   const [isCVModalOpen, setIsCVModalOpen] = useState(false);
-  const [certModalConfig, setCertModalConfig] = useState({ isOpen: false, src: '' });
+  const [entered, setEntered] = useState(false);
 
-  const audioRef = React.useRef<HTMLAudioElement>(null);
-
+  // Intersection Observer setup
   useEffect(() => {
-    if (isLoading) return;
-
-    window.scrollTo(0, 0);
-
-    const handleScroll = () => {
-      const sections = Array.from(document.querySelectorAll('section[id]'));
-      if (sections.length === 0) return;
-
-      // Check if user scrolled to the absolute bottom (and page has actually rendered)
-      const isAtBottom = 
-        Math.ceil(window.innerHeight + window.scrollY) >= document.body.offsetHeight - 20 &&
-        document.body.offsetHeight > window.innerHeight;
-        
-      if (isAtBottom) {
-        setActiveSection(sections[sections.length - 1].id);
-        return;
-      }
-
-      const trigger = window.innerHeight * 0.3; // 30% from top
-      let currentId = sections[0].id; // Fallback to first section
-
-      for (const section of sections) {
-        const rect = section.getBoundingClientRect();
-        if (rect.height > 0 && rect.bottom >= trigger) {
-          currentId = section.id;
-          break;
+    if (!entered) return; // Only observe when entered
+    
+    const observerCallback: IntersectionObserverCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active');
         }
-      }
-      
-      setActiveSection(currentId);
+      });
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    // Initial check (delay slightly so DOM expands)
-    const timer = setTimeout(handleScroll, 100);
+    const observerOptions = {
+      root: null,
+      rootMargin: '0px',
+      threshold: 0.1,
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+    const elements = document.querySelectorAll('.reveal');
+    elements.forEach((el) => observer.observe(el));
 
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener('scroll', handleScroll);
+      elements.forEach((el) => observer.unobserve(el));
+      observer.disconnect();
     };
-  }, [isLoading]);
+  }, [entered]);
 
-  const handleStartApp = () => {
-    setIsLoading(false);
-    if (audioRef.current) {
-      audioRef.current.volume = 0.3;
-      audioRef.current.play()
-        .catch((error: unknown) => console.log('Audio playback error:', error));
+  // Lock body scroll when intro is active
+  useEffect(() => {
+    if (!entered) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
     }
-  };
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [entered]);
 
   return (
     <>
+      <AnimatePresence>
+        {!entered && <IntroScreen onEnter={() => setEntered(true)} />}
+      </AnimatePresence>
 
-      <CursorParticles />
-      <audio 
-        ref={audioRef} 
-        src={bgMusic}
-      />
-      
-      {isLoading ? (
-        <Loader onComplete={handleStartApp} />
-      ) : (
-        <div className="main-content show overflow-x-hidden">
-          <Navbar currentSection={activeSection} />
-          <Hero onDownloadCV={() => setIsCVModalOpen(true)} />
+      <div className={`min-h-screen bg-[#050505] text-white font-body selection:bg-[#2563eb]/30 relative overflow-x-hidden ${!entered ? 'h-screen overflow-hidden' : ''}`}>
+        <Navbar onDownloadCV={() => setIsCVModalOpen(true)} />
+        
+        <main className="flex flex-col">
+          <Hero entered={entered} />
           
-          <ScrollReveal direction="left">
+          <motion.div
+            className="w-full overflow-hidden my-10"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.8, ease: [0.25, 1, 0.5, 1] }}
+          >
+            <ScrollVelocity
+              texts={[
+                <div className="flex items-center gap-4 px-12 md:px-24 text-white" key="1">
+                  <img src={`${import.meta.env.BASE_URL}picture 3/front-end-programming.png`} alt="frontend icon" className="h-[1em] w-[1em] object-contain" />
+                  <span>JESÚS MARTÍNEZ</span>
+                </div>
+              ]} 
+              velocity={60}
+              className="custom-scroll-text flex items-center"
+              numCopies={8}
+              damping={40}
+              stiffness={350}
+            />
+          </motion.div>
+          
+          <div className="max-w-[1400px] mx-auto w-full px-6 lg:px-12 flex flex-col gap-32 pt-24 pb-14">
             <About />
-          </ScrollReveal>
-          
-          <ScrollReveal direction="right">
             <Skills />
-          </ScrollReveal>
-          
-          <ScrollReveal direction="left">
-            <Certifications onOpenCert={(src: string) => setCertModalConfig({ isOpen: true, src })} />
-          </ScrollReveal>
-          
-          <ScrollReveal direction="right">
             <Projects />
-          </ScrollReveal>
-          
-          <ScrollReveal direction="left">
             <Contact />
-          </ScrollReveal>
-          
-          <Footer />
+          </div>
+        </main>
+        
+        <Footer />
+        <CVModal isOpen={isCVModalOpen} onClose={() => setIsCVModalOpen(false)} />
 
-          <CertModal 
-            isOpen={certModalConfig.isOpen} 
-            imageSrc={certModalConfig.src} 
-            onClose={() => setCertModalConfig({ isOpen: false, src: '' })} 
-          />
-          <CVModal 
-            isOpen={isCVModalOpen} 
-            onClose={() => setIsCVModalOpen(false)} 
-          />
-        </div>
-      )}
+      </div>
     </>
   );
 };
