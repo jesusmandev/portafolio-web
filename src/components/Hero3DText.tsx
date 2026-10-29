@@ -440,9 +440,9 @@ const Hero3DText: React.FC<Hero3DTextProps> = ({ anchorRef }) => {
         // En tablet vertical/horizontal: ajustar para que quepa completo sin cortarse
         totalWorldWidth = word1TotalWidth * 1.12;
       } else {
-        // En escritorio: mantener el tamaño grande e imponente original
+        // En escritorio: tamaño equilibrado para que quepa completo en su columna sin salirse por la izquierda
         const anchorWidthRatio = aRect && aRect.width > 0 ? aRect.width / w : Math.min(0.85, 700 / w);
-        const desiredAnchorWorldWidth = word1TotalWidth * 0.68;
+        const desiredAnchorWorldWidth = word1TotalWidth * 0.86;
         totalWorldWidth = desiredAnchorWorldWidth / Math.max(anchorWidthRatio, 0.28);
       }
 
@@ -473,7 +473,12 @@ const Hero3DText: React.FC<Hero3DTextProps> = ({ anchorRef }) => {
         const ndcX = ((anchorCenterX - cRect.left) / w) * 2 - 1;
         const ndcY = -((anchorCenterY - cRect.top) / h) * 2 + 1;
 
-        offsetX = isMobile || isTablet ? 0 : ndcX * (totalWorldWidth / 2) + 0.8;
+        if (isMobile || isTablet) {
+          offsetX = 0;
+        } else {
+          const minOffsetX = -totalWorldWidth / 2 + word1TotalWidth / 2 + 2.6;
+          offsetX = Math.max(minOffsetX, ndcX * (totalWorldWidth / 2) + 1.1);
+        }
         offsetY = ndcY * (totalWorldHeight / 2);
       }
 

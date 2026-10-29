@@ -79,10 +79,10 @@ const Computer3D: React.FC = () => {
       prevY: 0,
       theta: -0.05,
       phi: 1.18,
-      radius: 6.85,
+      radius: 7.1,
       targetTheta: -0.05,
       targetPhi: 1.18,
-      targetRadius: 6.85,
+      targetRadius: 7.1,
       lookAtTarget: new THREE.Vector3(0.05, 0.85, 0.0),
     };
 
@@ -399,7 +399,7 @@ const Computer3D: React.FC = () => {
         clearcoatRoughness: 0.25,
       });
 
-      const topBoard = new THREE.Mesh(createSmoothBoxGeometry(4.95, 0.14, 2.05, 0.06, 8), deskMat);
+      const topBoard = new THREE.Mesh(createSmoothBoxGeometry(6.05, 0.14, 2.05, 0.06, 8), deskMat);
       topBoard.position.set(0, -0.07, 0.08);
       topBoard.castShadow = true;
       topBoard.receiveShadow = true;
@@ -407,14 +407,14 @@ const Computer3D: React.FC = () => {
 
       // Tira LED azul intensa perimetral en el borde frontal de la mesa
       const deskFrontLed = new THREE.Mesh(
-        createSmoothBoxGeometry(4.84, 0.024, 0.028, 0.01, 6),
+        createSmoothBoxGeometry(5.92, 0.024, 0.028, 0.01, 6),
         new THREE.MeshBasicMaterial({ color: 0x2563eb })
       );
       deskFrontLed.position.set(0, -0.07, 1.1);
       deskGroup.add(deskFrontLed);
 
       // Base inferior flotante biselada (sin patas cortadas abajo) para que la mesa se vea 100% completa
-      const underBaseGeo = createSmoothBoxGeometry(4.4, 0.06, 1.7, 0.025, 6);
+      const underBaseGeo = createSmoothBoxGeometry(5.45, 0.06, 1.7, 0.025, 6);
       const underBaseMat = new THREE.MeshPhysicalMaterial({
         color: 0x03050a,
         roughness: 0.3,
@@ -426,14 +426,14 @@ const Computer3D: React.FC = () => {
       deskGroup.add(underBase);
 
       const underGlowStrip = new THREE.Mesh(
-        createSmoothBoxGeometry(4.46, 0.014, 1.74, 0.006, 6),
+        createSmoothBoxGeometry(5.52, 0.014, 1.74, 0.006, 6),
         new THREE.MeshBasicMaterial({ color: 0x2563eb })
       );
       underGlowStrip.position.set(0, -0.135, 0.08);
       deskGroup.add(underGlowStrip);
 
       // Alfombrilla XL con borde luminoso azul intenso
-      const matGlowGeo = createRoundedExtrude(3.96, 1.54, 0.008, 0.13, 0.003, 32);
+      const matGlowGeo = createRoundedExtrude(4.96, 1.54, 0.008, 0.13, 0.003, 32);
       matGlowGeo.rotateX(Math.PI / 2);
       const matGlow = new THREE.Mesh(
         matGlowGeo,
@@ -442,7 +442,7 @@ const Computer3D: React.FC = () => {
       matGlow.position.set(0, 0.002, 0.34);
       deskGroup.add(matGlow);
 
-      const matGeo = createRoundedExtrude(3.9, 1.48, 0.014, 0.12, 0.003, 32);
+      const matGeo = createRoundedExtrude(4.9, 1.48, 0.014, 0.12, 0.003, 32);
       matGeo.rotateX(Math.PI / 2);
       const matMat = new THREE.MeshStandardMaterial({ color: 0x04060c, roughness: 0.88 });
       const mouseMat = new THREE.Mesh(matGeo, matMat);
@@ -454,7 +454,7 @@ const Computer3D: React.FC = () => {
 
       // Cubo luminoso "JM"
       const cubeGroup = new THREE.Group();
-      cubeGroup.position.set(-1.46, 0.2, 0.44);
+      cubeGroup.position.set(-1.64, 0.2, 0.44);
       cubeGroup.rotation.y = 0.35;
       setupGroup.add(cubeGroup);
 
@@ -476,9 +476,9 @@ const Computer3D: React.FC = () => {
       cubeGroup.add(cubeGlow);
 
       // Barras LED azules intensas decorativas horizontales
-      [-1.08, 1.08].forEach((bx) => {
+      [-1.24, 1.24].forEach((bx) => {
         const ledBar = new THREE.Mesh(
-          new THREE.BoxGeometry(0.75, 0.035, 0.045),
+          new THREE.BoxGeometry(0.88, 0.035, 0.045),
           new THREE.MeshBasicMaterial({ color: 0x2563eb })
         );
         ledBar.position.set(bx, 0.018, -0.05);
@@ -487,7 +487,7 @@ const Computer3D: React.FC = () => {
 
       // Vaso/taza de cerámica "JM" con interior hueco y agua 3D animada
       const mugGroup = new THREE.Group();
-      mugGroup.position.set(1.52, 0.01, 0.44);
+      mugGroup.position.set(1.7, 0.01, 0.44);
       mugGroup.rotation.y = -0.35;
       setupGroup.add(mugGroup);
 
@@ -1188,7 +1188,7 @@ const Computer3D: React.FC = () => {
       const spkPortGeo = createRoundedExtrude(0.24, 0.044, 0.025, 0.02, 0.006, 16);
       const eqPillGeo = createSmoothBoxGeometry(0.044, 0.12, 0.044, 0.018, 5);
 
-      [-2.02, 2.02].forEach((posX, index) => {
+      [-2.48, 2.48].forEach((posX, index) => {
         const spkAnchor = new THREE.Group();
         spkAnchor.position.set(posX, 0.0, -0.18);
         spkAnchor.rotation.y = posX < 0 ? 0.28 : -0.28;

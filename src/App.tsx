@@ -14,6 +14,7 @@ import './index.css';
 import IntroScreen from './components/IntroScreen';
 import { AnimatePresence, motion } from 'framer-motion';
 import ScrollVelocity from './components/ScrollVelocity';
+import FluidGlass from './components/FluidGlass';
 
 const AppContent: React.FC = () => {
   const [isCVModalOpen, setIsCVModalOpen] = useState(false);
@@ -66,6 +67,25 @@ const AppContent: React.FC = () => {
       </AnimatePresence>
 
       <div className={`min-h-screen bg-[#050505] text-white font-body selection:bg-[#2563eb]/30 relative overflow-x-hidden ${!entered ? 'h-screen overflow-hidden' : ''}`}>
+        {/* Cursor fluido de cristal 3D (sprite ligero 88x88px sin lag) */}
+        <FluidGlass
+          shape="torus"
+          shapes={['torus', 'lens', 'diamond', 'pill']}
+          size={42}
+          refraction={1}
+          dispersion={0.35}
+          color="#3b82f6"
+          tint={0.25}
+          reflection={1.25}
+          elevation={0.4}
+          smoothness={0.28}
+          wobble={0.55}
+          spin={0}
+          idle={false}
+          morphOnClick
+          intro
+        />
+
         <Navbar onDownloadCV={() => setIsCVModalOpen(true)} />
         
         <main className="flex flex-col">
