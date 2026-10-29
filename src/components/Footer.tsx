@@ -6,8 +6,7 @@ import {
   motion,
   useInView,
   AnimatePresence,
-  useScroll,
-  useTransform,
+  type Variants,
 } from 'framer-motion';
 import { ArrowUp } from 'lucide-react';
 
@@ -51,67 +50,6 @@ function AnimatedLink({ href, children, external = false }: { href: string; chil
         transition={{ duration: 0.25, ease: 'easeOut' }}
         style={{ display: 'block' }}
       />
-    </motion.a>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   RIPPLE BUTTON
-───────────────────────────────────────────── */
-type Ripple = { id: number; x: number; y: number };
-
-function RippleButton({ href, children }: { href: string; children: React.ReactNode }) {
-  const [ripples, setRipples] = useState<Ripple[]>([]);
-
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const id = Date.now();
-    setRipples((prev) => [...prev, { id, x, y }]);
-    setTimeout(() => setRipples((prev) => prev.filter((r) => r.id !== id)), 700);
-  };
-
-  return (
-    <motion.a
-      href={href}
-      onClick={handleClick}
-      className="relative overflow-hidden inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full text-white font-bold text-[15px] no-underline"
-      style={{
-        background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 50%, #2563eb 100%)',
-        backgroundSize: '200% 200%',
-        boxShadow: '0 0 24px rgba(37,99,235,0.35)',
-      }}
-      whileHover={{
-        scale: 1.05,
-        rotateX: 4,
-        boxShadow: '0 0 45px rgba(37,99,235,0.6)',
-      }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-    >
-      {/* Shimmer sweep */}
-      <motion.span
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%)',
-          backgroundSize: '200% 100%',
-        }}
-        animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
-        transition={{ repeat: Infinity, duration: 2.2, ease: 'linear' }}
-      />
-      {children}
-      {/* Ripples */}
-      {ripples.map((r) => (
-        <motion.span
-          key={r.id}
-          className="absolute rounded-full bg-white/30 pointer-events-none"
-          style={{ left: r.x, top: r.y, x: '-50%', y: '-50%' }}
-          initial={{ width: 0, height: 0, opacity: 0.6 }}
-          animate={{ width: 200, height: 200, opacity: 0 }}
-          transition={{ duration: 0.65, ease: 'easeOut' }}
-        />
-      ))}
     </motion.a>
   );
 }
@@ -169,18 +107,18 @@ function CharFade({ text, inView, baseDelay = 0 }: { text: string; inView: boole
 /* ─────────────────────────────────────────────
    STAGGER VARIANTS
 ───────────────────────────────────────────── */
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.12 } },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 40, filter: 'blur(12px)' },
   visible: {
     opacity: 1,
     y: 0,
     filter: 'blur(0px)',
-    transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] },
+    transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] as const },
   },
 };
 
