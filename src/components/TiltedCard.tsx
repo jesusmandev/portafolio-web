@@ -178,7 +178,7 @@ const TiltedCard: React.FC<TiltedCardProps> = ({
   reverse = false,
   trackWindow = false,
   floating = false,
-  gyroscope = true,
+  gyroscope = false,
   intro = true,
   introDelay = 0,
   onClick,
@@ -523,7 +523,9 @@ const TiltedCard: React.FC<TiltedCardProps> = ({
     window.addEventListener('pointercancel', onCancel as any, { passive: true });
     window.addEventListener('pointermove', onWindowMove as any, { passive: true });
     document.documentElement.addEventListener('pointerleave', onWindowLeave as any);
-    window.addEventListener('deviceorientation', onOrientation);
+    if (settingsRef.current.gyroscope) {
+      window.addEventListener('deviceorientation', onOrientation, { passive: true });
+    }
 
     const observer = new IntersectionObserver(entries => {
       visible = entries.some(entry => entry.isIntersecting);

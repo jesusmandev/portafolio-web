@@ -196,21 +196,35 @@ const AboutFreelancer3D: React.FC = () => {
     const updateScale = () => {
       const w = getWidth();
       const h = getHeight();
-      camera.aspect = w / h;
+      const aspect = w / h;
+      camera.aspect = aspect;
+
+      const isMobile = w < 768;
+      if (isMobile) {
+        // En teléfonos/pantallas verticales (aspect < 0.5): alejar la cámara para que el ángulo horizontal no se comprima
+        camera.position.set(0, 3.8, 48);
+        camera.lookAt(0, -3.2, 0);
+        camera.fov = 40;
+      } else {
+        camera.position.set(0, 5.2, 23);
+        camera.lookAt(0, -2.2, 0);
+        camera.fov = 36;
+      }
+
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
 
-      const isMobile = w < 768;
       const fovRad = (camera.fov * Math.PI) / 180;
-      // Distance from camera (0, 5.2, 23) to ground plane (-0.5, -4.2, -1.8)
-      const dist = 26.5;
+      const camZ = camera.position.z;
+      const targetZ = -1.8;
+      const dist = Math.abs(camZ - targetZ);
       const visibleWidth = 2 * Math.tan(fovRad / 2) * dist * camera.aspect;
 
-      // On mobile devices, fit the entire word inside 86% of screen width without artificial clamp
-      const targetWidth = isMobile ? visibleWidth * 0.86 : visibleWidth * 0.94;
-      const scaleFactor = Math.min(1.0, targetWidth / totalWordWidth);
+      // En móviles, asegurar que la palabra completa "FREELANCER" quepa con margen lateral y proporciones nítidas
+      const targetWidth = isMobile ? visibleWidth * 0.84 : visibleWidth * 0.94;
+      const scaleFactor = Math.min(isMobile ? 0.72 : 1.0, targetWidth / totalWordWidth);
       textGroundGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
-      textGroundGroup.position.set(0, isMobile ? -4.9 : -4.2, -1.8);
+      textGroundGroup.position.set(0, isMobile ? -5.2 : -4.2, -1.8);
     };
 
     updateScale();

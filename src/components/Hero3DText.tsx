@@ -12,6 +12,8 @@ interface LetterObject {
   body: CANNON.Body;
   relX: number;
   relY: number;
+  baseRelX: number;
+  baseRelY: number;
   initialPos: THREE.Vector3;
   phase: number;
   isFloating: boolean;
@@ -308,6 +310,8 @@ const Hero3DText: React.FC<Hero3DTextProps> = ({ anchorRef }) => {
           body,
           relX,
           relY,
+          baseRelX: relX,
+          baseRelY: relY,
           initialPos: new THREE.Vector3(relX, relY, 0),
           phase: i * 0.42 + (relY > 0 ? 0 : 1.5),
           isFloating: true,
@@ -395,7 +399,7 @@ const Hero3DText: React.FC<Hero3DTextProps> = ({ anchorRef }) => {
     });
 
     // Crear fila inferior: FRONTEND (rojo intenso extra grueso brillante con relieve 3D profundo)
-    createWordRow({
+    const word2TotalWidth = createWordRow({
       text: WORD_2,
       font,
       frontMaterial: redFrontMaterial,
@@ -432,13 +436,15 @@ const Hero3DText: React.FC<Hero3DTextProps> = ({ anchorRef }) => {
       const anchorEl = anchorRef?.current;
       const aRect = anchorEl ? anchorEl.getBoundingClientRect() : null;
 
+      const maxWordWidth = Math.max(word1TotalWidth, word2TotalWidth);
+
       let totalWorldWidth: number;
       if (isMobile) {
-        // En teléfono: asegurar que las 13 letras de "DESARROLLADOR" quepan completas con margen lateral
-        totalWorldWidth = word1TotalWidth * 1.18;
+        // En teléfono: asegurar que ambas palabras ("DESARROLLADOR" y "FRONTEND") quepan con amplio margen lateral
+        totalWorldWidth = maxWordWidth * 1.30;
       } else if (isTablet) {
-        // En tablet vertical/horizontal: ajustar para que quepa completo sin cortarse
-        totalWorldWidth = word1TotalWidth * 1.12;
+        // En tablet: asegurar que quepan completas sin cortarse
+        totalWorldWidth = maxWordWidth * 1.16;
       } else {
         // En escritorio: tamaño equilibrado para que quepa completo en su columna sin salirse por la izquierda
         const anchorWidthRatio = aRect && aRect.width > 0 ? aRect.width / w : Math.min(0.85, 700 / w);
@@ -485,7 +491,18 @@ const Hero3DText: React.FC<Hero3DTextProps> = ({ anchorRef }) => {
       currentOffsetX = offsetX;
       currentOffsetY = offsetY;
 
+      // En móviles, ajustar escala y acercar verticalmente las 2 filas para que FRONTEND no se corte ni quede tapado
+      const letterScale = isMobile ? 0.86 : 1.0;
       letterObjects.forEach((item) => {
+        item.mesh.scale.set(letterScale, letterScale, letterScale);
+        if (isMobile) {
+          item.relY = item.baseRelY > 0 ? 1.4 : -1.4;
+          item.relX = item.baseRelX * letterScale;
+        } else {
+          item.relY = item.baseRelY;
+          item.relX = item.baseRelX;
+        }
+
         item.initialPos.set(item.relX + offsetX, item.relY + offsetY, 0);
         if (item.isFloating) {
           item.body.position.set(item.initialPos.x, item.initialPos.y, item.initialPos.z);

@@ -138,7 +138,7 @@ const Hero: React.FC<HeroProps> = () => {
               {/* Anchor box where "DESARROLLADOR FRONTEND" floats in 3D */}
               <div
                 ref={titleAnchorRef}
-                className="w-full h-[145px] sm:h-[210px] lg:h-[320px]"
+                className="w-full h-[185px] sm:h-[220px] lg:h-[320px]"
               />
 
               {/* Buttons */}
@@ -148,7 +148,7 @@ const Hero: React.FC<HeroProps> = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '20px',
-                  marginTop: '16px',
+                  marginTop: '20px',
                   flexWrap: 'wrap',
                 }}
               >

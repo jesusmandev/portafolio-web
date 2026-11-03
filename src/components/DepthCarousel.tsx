@@ -136,6 +136,8 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
     if (!n) return;
     const dir = cfg.tiltDirection === 'left' ? -1 : 1;
     const sc = scaleRef.current;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const maxVisibleCards = isMobile ? 2 : cfg.visibleCards;
 
     for (let i = 0; i < n; i++) {
       const el = cardRefs.current[i];
@@ -149,18 +151,26 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
 
       const back = Math.max(0, d);
       const az = Math.abs(d);
-      const shown = az <= cfg.visibleCards + 0.5;
+      const shown = az <= maxVisibleCards + 0.5;
+
+      if (!shown) {
+        el.style.display = 'none';
+        el.style.pointerEvents = 'none';
+        continue;
+      }
+
+      el.style.display = 'block';
 
       const tz = -cfg.depth * d;
       const tx = dir * cfg.spread * d;
       const ry = dir * cfg.tilt * clamp(d, 0, 1);
 
       let opacity = d < 0 ? Math.max(0, 1 + d) : 1;
-      if (!shown) opacity = 0;
 
       const brightness = Math.max(0.15, 1 - back * cfg.falloff);
+      // Desactivar blur en móviles para evitar colapso de memoria VRAM (WebKit/Blink mobile)
       const blurPx =
-        cfg.blur > 0
+        !isMobile && cfg.blur > 0
           ? Math.min(cfg.blur, (back / Math.max(1, cfg.visibleCards)) * cfg.blur)
           : 0;
       const zi = Math.round(2000 - d * 20);
@@ -169,11 +179,11 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
         2
       )}px) translateZ(${tz.toFixed(2)}px) rotateY(${ry.toFixed(3)}deg)`;
       el.style.opacity = opacity.toFixed(3);
-      el.style.filter = `brightness(${brightness.toFixed(3)}) blur(${blurPx.toFixed(
-        2
-      )}px)`;
+      el.style.filter = blurPx > 0
+        ? `brightness(${brightness.toFixed(3)}) blur(${blurPx.toFixed(2)}px)`
+        : `brightness(${brightness.toFixed(3)})`;
       el.style.zIndex = String(zi);
-      el.style.pointerEvents = shown && opacity > 0.05 ? 'auto' : 'none';
+      el.style.pointerEvents = opacity > 0.05 ? 'auto' : 'none';
 
       const ov = overlayRefs.current[i];
       if (ov) ov.style.opacity = clamp(back * cfg.falloff * 1.25, 0, 0.86).toFixed(3);
@@ -461,6 +471,7 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
               radius={radius}
               showTooltip={false}
               intro={false}
+              gyroscope={false}
             >
               <TiltedCardLayer depth={24}>
                 {/* Overlay with Badge, Title, and Buttons "Ver Web" & "Ver Código" */}
