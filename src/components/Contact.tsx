@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
 const Contact: React.FC = () => {
@@ -10,6 +10,8 @@ const Contact: React.FC = () => {
   });
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const honeypotRef = useRef<HTMLInputElement>(null);
+  const lastSubmitRef = useRef(0);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -63,21 +65,47 @@ const Contact: React.FC = () => {
       return;
     }
 
+    // Honeypot anti-bots: si está relleno, simular éxito sin enviar
+    if (honeypotRef.current && honeypotRef.current.value) {
+      setStatus('success');
+      setFormData({ name: '', email: '', subject: '', message: '' });
+      return;
+    }
+
+    // Límite de frecuencia: máximo 1 envío cada 30 segundos
+    const now = Date.now();
+    if (now - lastSubmitRef.current < 30000) {
+      setStatus('error');
+      setErrorMessage('Espera unos segundos antes de enviar otro mensaje.');
+      return;
+    }
+    lastSubmitRef.current = now;
+
     setStatus('loading');
     setErrorMessage('');
 
     try {
+      // Sanitizar: quitar caracteres de control y recortar longitudes
+      const clean = (v: string, max: number) =>
+        // eslint-disable-next-line no-control-regex
+        v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, max);
+
       const submitData = new FormData();
       submitData.append("access_key", import.meta.env.VITE_WEB3FORMS_ACCESS_KEY);
-      submitData.append("name", formData.name);
-      submitData.append("email", formData.email);
-      submitData.append("subject", formData.subject);
-      submitData.append("message", formData.message);
+      submitData.append("name", clean(formData.name, 100));
+      submitData.append("email", clean(formData.email, 254));
+      submitData.append("subject", clean(formData.subject, 150));
+      submitData.append("message", clean(formData.message, 3000));
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       const response = await fetch('https://api.web3forms.com/submit', {
         method: 'POST',
-        body: submitData
-      });
+        body: submitData,
+        signal: controller.signal,
+        referrerPolicy: 'strict-origin',
+        credentials: 'omit',
+      }).finally(() => clearTimeout(timeoutId));
 
       const result = await response.json();
       if (result.success) {
@@ -166,7 +194,17 @@ const Contact: React.FC = () => {
                 boxShadow: '0 25px 80px rgba(0,0,0,.35)',
               }}
             >
-              <form className="flex flex-col gap-6" onSubmit={handleSubmit} noValidate>
+              <form className="flex flex-col gap-6" onSubmit={handleSubmit} noValidate autoComplete="on">
+                {/* Honeypot (invisible para humanos) */}
+                <input
+                  ref={honeypotRef}
+                  type="text"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+                />
                 <div className="flex flex-col md:flex-row gap-6">
                   {/* Nombre */}
                   <div className="w-full flex flex-col gap-2 relative group/input">
@@ -324,7 +362,7 @@ const Contact: React.FC = () => {
             {[
               { href: "https://github.com/jesusmandev", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg> },
               { href: "https://www.linkedin.com/in/jesus-manuel-martinez-serpa-088ab33a0", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg> },
-              { href: "https://wa.me/573042962947", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg> },
+              { href: "https://wa.me/573136480349", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg> },
             ].map((social, i) => (
               <a 
                 key={i}

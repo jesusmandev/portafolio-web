@@ -3,7 +3,7 @@ import React from 'react';
 const AvailabilityCard: React.FC = () => {
   return (
     <a 
-      href="https://wa.me/573014686477?text=Hola%20Jesús,%20estoy%20interesado%20en%20tus%20servicios!"
+      href="https://wa.me/573136480349?text=Hola%20Jesús,%20estoy%20interesado%20en%20tus%20servicios!"
       target="_blank"
       rel="noopener noreferrer"
       className="absolute z-40 hidden xl:flex animate-fade-up cursor-pointer"

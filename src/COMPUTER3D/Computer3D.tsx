@@ -65,8 +65,8 @@ const Computer3D: React.FC = () => {
     // Estado automático de la estación 3D
     const state = {
       powerOn: true,
-      screenMode: 0, // 0: Portafolio JM Live, 1: Matrix Crimson, 2: Cyberpunk Synth, 3: Analíticas
-      modeNames: ['Portafolio JM', 'Matrix Crimson', 'Synthwave 3D', 'Sistema OS'],
+      screenMode: 0, // 0: Gargantua Geodesic 3D Raymarching, 1: Matrix Crimson, 2: Cyberpunk Synth, 3: Analíticas
+      modeNames: ['Gargantua 3D', 'Matrix Crimson', 'Synthwave 3D', 'Sistema OS'],
       rgbMode: 0, // 0: Rojo Carmesí (JM)
       autoRotate: true,
       time: 0,
@@ -92,6 +92,408 @@ const Computer3D: React.FC = () => {
     osCanvas.height = 720;
     const osCtx = osCanvas.getContext('2d')!;
     let screenTexture: THREE.CanvasTexture;
+
+    // ---------------------------------------------------------------------------
+    // Renderizador Offscreen de Gargantua (Geodesic Raymarching 3D Shader)
+    // ---------------------------------------------------------------------------
+    const bhCanvas = document.createElement('canvas');
+    bhCanvas.width = 440;
+    bhCanvas.height = 360;
+    let bhRenderer: THREE.WebGLRenderer | null = null;
+    let bhScene: THREE.Scene | null = null;
+    let bhCamera: THREE.OrthographicCamera | null = null;
+    let bhUniforms: Record<string, { value: unknown }> | null = null;
+    let bhMaterial: THREE.ShaderMaterial | null = null;
+    let bhMesh: THREE.Mesh | null = null;
+    const bhTravelVelocity = new THREE.Vector3(0.55, 0.12, -0.82).normalize().multiplyScalar(6.0);
+    let bhLastTime = 0;
+
+    const bhVertexShader = /* glsl */ `
+      void main() {
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `;
+
+    const bhFragmentShader = /* glsl */ `
+      precision highp float;
+
+      #define PI 3.14159265359
+      #define MAX_STEPS 120
+
+      uniform vec2  iResolution;
+      uniform float iTime;
+      uniform vec3  camPos;
+      uniform vec3  camRight;
+      uniform vec3  camUp;
+      uniform vec3  camForward;
+      uniform float camFov;
+      uniform float uRs;
+      uniform float uDiskInner;
+      uniform float uDiskOuter;
+      uniform float uDiskRotSpeed;
+      uniform float uDiskSpin;
+      uniform float uExposure;
+      uniform float uAxisTilt;
+      uniform float uCameraRoll;
+      uniform vec3  uTravel;
+
+      float hash13(vec3 p3) {
+        p3 = fract(p3 * 0.1031);
+        p3 += dot(p3, p3.zyx + 31.32);
+        return fract((p3.x + p3.y) * p3.z);
+      }
+
+      float noise3(vec3 p) {
+        vec3 i = floor(p);
+        vec3 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+
+        float n000 = hash13(i + vec3(0.0, 0.0, 0.0));
+        float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+        float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+        float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+        float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+        float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+        float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+        float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+
+        float x00 = mix(n000, n100, f.x);
+        float x10 = mix(n010, n110, f.x);
+        float x01 = mix(n001, n101, f.x);
+        float x11 = mix(n011, n111, f.x);
+
+        float y0 = mix(x00, x10, f.y);
+        float y1 = mix(x01, x11, f.y);
+
+        return mix(y0, y1, f.z);
+      }
+
+      float fbm(vec3 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise3(p);
+          p = p * 2.02 + vec3(11.7, 3.1, 7.9);
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      float fbmFlow(vec3 p, float lac) {
+        float v = 0.0;
+        float a = 0.55;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise3(p);
+          p = p * lac + vec3(5.3, 9.1, 2.7);
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      vec3 starfield(vec3 dir, vec3 travel) {
+        vec3 col = vec3(0.0);
+        for (int layer = 0; layer < 2; layer++) {
+          float scale = 55.0 + float(layer) * 40.0;
+          vec3 p = dir * scale + travel * (0.35 + float(layer) * 0.5);
+          vec3 cell = floor(p);
+          vec3 f = fract(p);
+
+          float h = hash13(cell + float(layer) * 17.0);
+          if (h > 0.965) {
+            vec3 c = vec3(
+              0.2 + 0.6 * hash13(cell + 1.7),
+              0.2 + 0.6 * hash13(cell + 5.3),
+              0.2 + 0.6 * hash13(cell + 9.1)
+            );
+            float d = length(f - c);
+            float s = smoothstep(0.12, 0.0, d);
+            float temp = hash13(cell + 3.3);
+            vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.84, 1.0), temp);
+            col += tint * s * (0.5 + 1.5 * hash13(cell + 21.0));
+          }
+        }
+        return col;
+      }
+
+      vec3 bigStars(vec3 dir, vec3 travel) {
+        vec3 p = dir * 18.0 + travel * 0.12;
+        vec3 cell = floor(p);
+        vec3 f = fract(p);
+
+        float h = hash13(cell + 41.0);
+        if (h < 0.93) return vec3(0.0);
+
+        vec3 c = vec3(
+          0.25 + 0.5 * hash13(cell + 2.2),
+          0.25 + 0.5 * hash13(cell + 6.6),
+          0.25 + 0.5 * hash13(cell + 10.4)
+        );
+        float d = length(f - c);
+        float core = smoothstep(0.07, 0.0, d);
+        float glow = exp(-d * 18.0) * 0.35;
+        float temp = hash13(cell + 8.8);
+        vec3 tint = mix(vec3(1.0, 0.85, 0.65), vec3(0.75, 0.85, 1.0), temp);
+        return tint * (core * 2.4 + glow) * (0.6 + 0.8 * hash13(cell + 30.0));
+      }
+
+      vec3 nebulaClouds(vec3 dir, vec3 travel) {
+        float n1 = fbm(dir * 2.2 + travel * 0.02 + vec3(3.0, 1.0, 7.0));
+        float n2 = fbm(dir * 4.5 + travel * 0.04 + vec3(9.0, 4.0, 2.0));
+        float m = smoothstep(0.42, 0.85, n1 * 0.65 + n2 * 0.35);
+        vec3 colA = vec3(0.10, 0.06, 0.18);
+        vec3 colB = vec3(0.04, 0.10, 0.20);
+        vec3 colC = vec3(0.20, 0.09, 0.05);
+        vec3 neb = mix(colA, colB, n2);
+        neb = mix(neb, colC, smoothstep(0.55, 0.9, n1) * 0.5);
+        return neb * m * 0.55;
+      }
+
+      vec3 diskRamp(float t) {
+        vec3 yellow     = vec3(1.00, 0.86, 0.20) * 2.7;
+        vec3 gold       = vec3(1.00, 0.66, 0.05) * 2.5;
+        vec3 orange     = vec3(1.00, 0.40, 0.01) * 2.2;
+        vec3 deepCopper = vec3(0.95, 0.20, 0.00) * 1.5;
+        vec3 darkEdge   = vec3(0.40, 0.07, 0.00) * 0.6;
+
+        vec3 c = mix(yellow, gold, smoothstep(0.00, 0.32, t));
+        c = mix(c, orange, smoothstep(0.14, 0.58, t));
+        c = mix(c, deepCopper, smoothstep(0.40, 0.82, t));
+        c = mix(c, darkEdge, smoothstep(0.65, 1.00, t));
+        c = mix(c, vec3(0.0), smoothstep(0.92, 1.20, t));
+        return c;
+      }
+
+      float boundaryParticles(float r, float phi, float innerR, float outerR, float time) {
+        float omega = 1.15 / pow(max(r, innerR * 0.7) / innerR, 1.9);
+        float rotAngle = phi - omega * (7.0 + time * 1.4) * uDiskRotSpeed * uDiskSpin;
+
+        float pAccum = 0.0;
+        for (int layer = 0; layer < 2; layer++) {
+          float fl = float(layer);
+          float radialScale = 16.0 + fl * 12.0;
+          float angularBins = floor(r * (26.0 + fl * 18.0));
+
+          float rCell = floor(r * radialScale);
+          float rFract = fract(r * radialScale);
+
+          float aCoord = (rotAngle / (2.0 * PI) + 0.5) * angularBins;
+          float aCell = floor(aCoord);
+          float aFract = fract(aCoord);
+
+          vec3 seed = vec3(rCell, mod(aCell, max(angularBins, 1.0)), fl * 19.3);
+          float prob = hash13(seed);
+
+          if (prob > 0.72) {
+            vec2 center = vec2(0.25 + 0.5 * hash13(seed + 4.1), 0.25 + 0.5 * hash13(seed + 8.7));
+            vec2 d = vec2((rFract - center.x) * 1.4, (aFract - center.y) * 0.8);
+            float dist = length(d);
+            float size = 0.15 + 0.2 * hash13(seed + 13.5);
+            float spark = smoothstep(size, 0.0, dist);
+            float twinkle = 0.7 + 0.3 * sin(time * (5.0 + prob * 6.0) + prob * 40.0);
+            pAccum += spark * twinkle * (0.8 + 0.9 * prob);
+          }
+        }
+
+        float t = clamp((r - innerR) / (outerR - innerR), 0.0, 1.3);
+        float outerLimitBoost = exp(-pow((t - 0.78) / 0.28, 2.0)) * 1.8;
+        float midStream       = 0.45 * smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.85, 1.25, t));
+
+        return pAccum * (outerLimitBoost + midStream);
+      }
+
+      vec4 evaluateDiskAndClouds(vec3 p, vec3 rayDir, float innerR, float outerR, float time) {
+        float r = length(p.xz);
+        float phi = atan(p.z, p.x);
+
+        float t = max((r - innerR) / (outerR - innerR), 0.0);
+
+        float omega = 1.15 / pow(max(r, innerR * 0.75) / innerR, 1.9);
+        float windTime = 6.0 + time * 1.2;
+        float swirl = phi - omega * windTime * uDiskRotSpeed * uDiskSpin;
+
+        vec2 flowXY = vec2(cos(swirl), sin(swirl)) * r;
+        vec3 flowP = vec3(flowXY.x * 0.22, flowXY.y * 0.22, r * 0.05 - time * 0.06);
+
+        float nFilaments = clamp(fbmFlow(flowP, 2.8), 0.0, 1.0);
+        float grooveWave1 = sin(r * 3.8 + nFilaments * 2.0) * 0.5 + 0.5;
+        float grooveWave2 = sin(r * 10.0 + nFilaments * 1.5) * 0.5 + 0.5;
+        float concentricRings = mix(0.65, 1.2, smoothstep(0.1, 0.9, grooveWave1 * 0.6 + grooveWave2 * 0.4));
+
+        float cloudSwirl = phi - omega * (3.0 + time * 1.0) * uDiskRotSpeed * uDiskSpin;
+        vec2 cloudXY = vec2(cos(cloudSwirl), sin(cloudSwirl)) * r;
+        float cloudBillows = fbm(vec3(cloudXY * 0.45, r * 0.16 + time * 0.08));
+        float finePuffs = fbm(vec3(cloudXY * 1.1, r * 0.4 - time * 0.12));
+        float cloudStructure = smoothstep(0.24, 0.8, cloudBillows * 0.6 + finePuffs * 0.4);
+
+        float lanes = noise3(vec3(flowXY.x * 0.5, flowXY.y * 0.5, time * 0.08));
+        float dustLane = smoothstep(0.18, 0.78, lanes);
+
+        float yOmega = omega * 1.7;
+        float ySwirl = phi - yOmega * (3.0 + time * 1.2) * uDiskRotSpeed * uDiskSpin;
+        vec2 yXY = vec2(cos(ySwirl), sin(ySwirl)) * r;
+        float yPat = fbm(vec3(yXY * 0.35, time * 0.05));
+        float yellowZone = 1.0 - smoothstep(0.0, 0.55, t);
+        float tShift = (0.5 - yPat) * 0.26 * yellowZone;
+
+        vec3 baseColor = diskRamp(t + tShift + (nFilaments - 0.5) * 0.12 - (concentricRings - 0.9) * 0.03);
+
+        float edgeNoise = fbm(vec3(cos(phi) * 2.2, sin(phi) * 2.2, time * 0.03));
+        float outerEdge = 0.9 + edgeNoise * 0.38;
+        float innerCloudEdge = smoothstep(-0.08, 0.04, t + (cloudStructure - 0.5) * 0.05);
+        float radialMask = innerCloudEdge * (1.0 - smoothstep(0.55, outerEdge, t));
+
+        float spiral = 0.72 + 0.28 * sin(3.0 * swirl + r * 0.55) + 0.16 * sin(5.0 * swirl - r * 0.9);
+        float density = radialMask * (0.6 + 0.5 * nFilaments) * concentricRings * mix(0.6, 1.1, dustLane) * spiral;
+
+        vec3 tangent = normalize(vec3(-p.z, 0.0, p.x)) * uDiskSpin;
+        float vOrb = clamp(sqrt(uRs / (2.0 * max(r, uRs))), 0.0, 0.95);
+        float mu = dot(tangent, -rayDir);
+        float dopplerFactor = 1.0 / max(0.16, (1.0 - vOrb * mu));
+        float beaming = pow(dopplerFactor, 1.8);
+
+        vec3 col = baseColor * density * beaming * (1.0 + 0.25 * (yPat - 0.5) * yellowZone);
+
+        float particles = boundaryParticles(r, phi, innerR, outerR, time);
+        vec3 particleCol = diskRamp(clamp(t * 0.85, 0.02, 0.78)) * beaming * 2.1;
+        col += particleCol * particles;
+
+        col.b *= clamp(dopplerFactor, 0.55, 1.7);
+        col.r *= clamp(2.0 - dopplerFactor, 0.5, 1.4);
+
+        col = col / (1.0 + 0.6 * col);
+
+        float alpha = clamp(max(max(col.r, col.g), col.b) * 0.82 + particles * 0.4, 0.0, 0.98);
+        return vec4(max(col, 0.0), alpha);
+      }
+
+      vec3 acesFilm(vec3 x) {
+        const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+        return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+      }
+
+      vec3 rotateX(vec3 v, float a) {
+        float c = cos(a), s = sin(a);
+        return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c);
+      }
+
+      vec3 traceRay(vec3 ro, vec3 rd) {
+        vec3 pos = rotateX(ro, -uAxisTilt);
+        vec3 dir = rotateX(rd, -uAxisTilt);
+        vec3 h = cross(pos, dir);
+        float h2 = dot(h, h);
+
+        float escapeR = uRs * 190.0;
+        bool hitHorizon = false;
+        float lensR = uDiskOuter * 0.5;
+
+        float photonR = uRs * 2.1;
+        float ringWidth = uRs * 0.08;
+        float minR = escapeR;
+
+        vec3 accumColor = vec3(0.0);
+        float accumAlpha = 0.0;
+
+        for (int i = 0; i < MAX_STEPS; i++) {
+          float r = length(pos);
+          minR = min(minR, r);
+          if (r < uRs * 1.02) { hitHorizon = true; break; }
+          if (r > escapeR || accumAlpha > 0.995) { break; }
+
+          float dt = clamp(r * 0.14, 0.03, 1.6);
+
+          float atten = 1.0 / (1.0 + pow(r / lensR, 8.0));
+          vec3 accel = -1.5 * uRs * h2 * pos / pow(r, 5.0) * atten;
+          vec3 newDir = normalize(dir + accel * dt);
+          vec3 newPos = pos + newDir * dt;
+
+          if (sign(pos.y) != sign(newPos.y)) {
+            float tc = pos.y / (pos.y - newPos.y);
+            vec3 hitP = mix(pos, newPos, tc);
+            float rHit = length(hitP.xz);
+            if (rHit > uDiskInner * 0.8 && rHit < uDiskOuter * 1.3) {
+              vec4 diskSample = evaluateDiskAndClouds(hitP, newDir, uDiskInner, uDiskOuter, iTime);
+              accumColor += (1.0 - accumAlpha) * diskSample.rgb;
+              accumAlpha += (1.0 - accumAlpha) * diskSample.a;
+            }
+          }
+
+          pos = newPos;
+          dir = newDir;
+        }
+
+        vec3 bg = hitHorizon ? vec3(0.0) : (starfield(dir, uTravel) + bigStars(dir, uTravel) + nebulaClouds(dir, uTravel));
+
+        float ringGlow = exp(-pow((minR - photonR) / ringWidth, 2.0));
+        vec3 ring = diskRamp(0.05) * ringGlow * 1.8;
+
+        return accumColor + (1.0 - accumAlpha) * (bg + ring);
+      }
+
+      void main() {
+        vec2 uv = (gl_FragCoord.xy / iResolution.xy - 0.5) * 2.0;
+        uv.x *= iResolution.x / iResolution.y;
+
+        float tanFov = tan(camFov * 0.5);
+        vec3 rayDir = normalize(camForward + uv.x * tanFov * camRight + uv.y * tanFov * camUp);
+
+        vec3 col = traceRay(camPos, rayDir);
+
+        col = acesFilm(col * uExposure);
+
+        float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+        col = clamp(mix(vec3(luma), col, 1.3), 0.0, 1.0);
+
+        col = pow(col, vec3(1.0 / 2.2));
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    try {
+      bhRenderer = new THREE.WebGLRenderer({
+        canvas: bhCanvas,
+        antialias: false,
+        preserveDrawingBuffer: true,
+        powerPreference: 'high-performance'
+      });
+      bhRenderer.setPixelRatio(1);
+      bhRenderer.setSize(bhCanvas.width, bhCanvas.height, false);
+
+      bhScene = new THREE.Scene();
+      bhCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+      bhUniforms = {
+        iResolution:   { value: new THREE.Vector2(bhCanvas.width, bhCanvas.height) },
+        iTime:         { value: 0 },
+        camPos:        { value: new THREE.Vector3() },
+        camRight:      { value: new THREE.Vector3() },
+        camUp:         { value: new THREE.Vector3() },
+        camForward:    { value: new THREE.Vector3() },
+        camFov:        { value: THREE.MathUtils.degToRad(42.0) },
+        uRs:           { value: 1.0 },
+        uDiskInner:    { value: 2.2 },
+        uDiskOuter:    { value: 19.5 },
+        uDiskRotSpeed: { value: 2.6 },
+        uDiskSpin:     { value: 1.0 },
+        uExposure:     { value: 1.5 },
+        uAxisTilt:     { value: 0.0 },
+        uCameraRoll:   { value: 0.0 },
+        uTravel:       { value: new THREE.Vector3() }
+      };
+
+      bhMaterial = new THREE.ShaderMaterial({
+        uniforms: bhUniforms,
+        vertexShader: bhVertexShader,
+        fragmentShader: bhFragmentShader,
+        depthWrite: false,
+        depthTest: false
+      });
+
+      bhMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bhMaterial);
+      bhScene.add(bhMesh);
+    } catch (err) {
+      console.warn('Gargantua offscreen renderer setup fallback:', err);
+    }
 
     // Datos para el efecto Matrix en pantalla
     const matrixCols = 52;
@@ -1352,33 +1754,53 @@ const Computer3D: React.FC = () => {
       osCtx.fillRect(0, 0, w, h);
 
       const codeSnippet = [
-        'import about_me',
+        '<!DOCTYPE html>',
+        '<!-- Gargantua — Geodesic Raymarching 3D -->',
+        '<script type="module">',
+        '  import * as THREE from "three";',
         '',
-        'class JesusMartinez(Developer):',
-        '  def __init__(self):',
-        '    self.name = "Jesús Martínez"',
-        '    self.role = "Desarrollador Frontend"',
-        '    self.location = "Colombia"',
-        '    self.passion = "Convertir diseños en experiencias"',
+        '  const scene = new THREE.Scene();',
+        '  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);',
+        '  const renderer = new THREE.WebGLRenderer({',
+        '    antialias: false, powerPreference: "high-performance"',
+        '  });',
         '',
-        '  def my_mission(self):',
-        '    print("Hablo con código (HTML, CSS, JS)")',
-        '    print("Convierto ideas en interfaces increíbles")',
+        '  // Uniforms: Métrica de Schwarzschild',
+        '  const uniforms = {',
+        '    uRs:           { value: 1.0 },   // Radio Schwarzschild',
+        '    uDiskInner:    { value: 2.2 },   // ISCO estable',
+        '    uDiskOuter:    { value: 19.5 },  // Disco de acreción',
+        '    uDiskRotSpeed: { value: 2.6 },   // Rotación relativista',
+        '    uExposure:     { value: 1.5 },   // Exposición ACES',
+        '  };',
         '',
-        'me = JesusMartinez()',
-        'me.say_hello()',
+        '  // Curvatura Espacio-Tiempo: Geodésicas Nulas',
+        '  vec3 accel = -1.5 * uRs * h2 * pos / pow(r, 5.0) * atten;',
+        '  vec3 newDir = normalize(dir + accel * dt);',
+        '',
+        '  // Efecto Doppler & Beaming Relativista',
+        '  float beaming = pow(dopplerFactor, 1.8);',
+        '  col = acesFilm(col * uExposure);',
+        '  renderer.render(scene, camera);',
+        '</script>',
       ];
 
       const fullTextLength = codeSnippet.reduce((acc, line) => acc + line.length, 0);
-      const cycleDuration = 16;
+      // Ciclo ágil en cámara rápida: escribe en ~4.2 segundos y muestra la simulación completa
+      const cycleDuration = 7.5;
       const cycleTime = time % cycleDuration;
-      const typingProgress = Math.min(1, cycleTime / (cycleDuration - 3.5));
+      const typingTime = 4.2;
+      const typingProgress = Math.min(1, cycleTime / typingTime);
       let charsRemaining = Math.floor(typingProgress * fullTextLength);
 
+      // -----------------------------------------------------------------------
+      // Panel Izquierdo: Editor Visual Studio Code con el código de Gargantua
+      // -----------------------------------------------------------------------
       const edX = 20;
       const edY = 18;
       const edW = 575;
       const edH = h - 78;
+
       osCtx.fillStyle = '#050811';
       osCtx.beginPath();
       osCtx.roundRect(edX, edY, edW, edH, 12);
@@ -1387,31 +1809,49 @@ const Computer3D: React.FC = () => {
       osCtx.lineWidth = 2;
       osCtx.stroke();
 
+      // Barra superior de VS Code con botones macOS
       osCtx.fillStyle = '#091228';
       osCtx.beginPath();
       osCtx.roundRect(edX, edY, edW, 38, [12, 12, 0, 0]);
       osCtx.fill();
 
-      ['#2563eb', '#f59e0b', '#10b981'].forEach((c, idx) => {
+      ['#ff5f56', '#ffbd2e', '#27c93f'].forEach((c, idx) => {
         osCtx.fillStyle = c;
         osCtx.beginPath();
-        osCtx.arc(edX + 24 + idx * 20, edY + 19, 6, 0, Math.PI * 2);
+        osCtx.arc(edX + 24 + idx * 20, edY + 19, 5.5, 0, Math.PI * 2);
         osCtx.fill();
       });
 
-      osCtx.fillStyle = '#60a5fa';
-      osCtx.font = '600 13px monospace';
-      osCtx.fillText('portfolio_jm.py — Visual Studio Code', edX + 95, edY + 24);
+      // Pestaña activa
+      osCtx.fillStyle = '#050811';
+      osCtx.beginPath();
+      osCtx.roundRect(edX + 90, edY + 5, 200, 33, [6, 6, 0, 0]);
+      osCtx.fill();
 
-      osCtx.font = '15px monospace';
+      // Icono HTML naranja
+      osCtx.fillStyle = '#f97316';
+      osCtx.font = 'bold 12px Inter, sans-serif';
+      osCtx.fillText('</>', edX + 102, edY + 25);
+
+      osCtx.fillStyle = '#93c5fd';
+      osCtx.font = '600 12px monospace';
+      osCtx.fillText('gargantua.html', edX + 130, edY + 25);
+
+      osCtx.fillStyle = '#64748b';
+      osCtx.font = '11px Inter, sans-serif';
+      osCtx.fillText('Visual Studio Code', edX + edW - 140, edY + 25);
+
+      // Líneas de código
+      osCtx.font = '12px "JetBrains Mono", Consolas, monospace';
       let cursorX = edX + 54;
-      let cursorY = edY + 70;
+      let cursorY = edY + 62;
+      const lineHeight = 19;
 
       for (let i = 0; i < codeSnippet.length; i++) {
         const lineStr = codeSnippet[i];
-        const yPos = edY + 70 + i * 32;
+        const yPos = edY + 62 + i * lineHeight;
 
-        osCtx.fillStyle = '#52525b';
+        osCtx.fillStyle = '#475569';
         osCtx.fillText(String(i + 1).padStart(2, '0'), edX + 16, yPos);
 
         if (charsRemaining <= 0 && lineStr.length > 0) break;
@@ -1420,40 +1860,86 @@ const Computer3D: React.FC = () => {
         const subStr = lineStr.substring(0, visibleChars);
         charsRemaining -= visibleChars;
 
-        if (lineStr.startsWith('import') || lineStr.includes('self.')) osCtx.fillStyle = '#3b82f6';
-        else if (lineStr.startsWith('class ') || lineStr.includes('def ')) osCtx.fillStyle = '#fbbf24';
-        else if (lineStr.includes('print(')) osCtx.fillStyle = '#10b981';
-        else osCtx.fillStyle = '#e4e4e7';
-
-        if (charsRemaining === 0 && typingProgress < 1) {
-          osCtx.fillStyle = 'rgba(37, 99, 235, 0.22)';
-          osCtx.fillRect(edX + 46, yPos - 19, edW - 56, 26);
-          osCtx.fillStyle = '#60a5fa';
+        // Resaltado de sintaxis
+        if (lineStr.trim().startsWith('<!--') || lineStr.trim().startsWith('//')) {
+          osCtx.fillStyle = '#64748b'; // Comentario
+        } else if (
+          lineStr.includes('<!DOCTYPE') ||
+          lineStr.includes('<script') ||
+          lineStr.includes('</script>') ||
+          lineStr.includes('<title')
+        ) {
+          osCtx.fillStyle = '#f43f5e'; // Etiquetas HTML
+        } else if (
+          lineStr.includes('import') ||
+          lineStr.includes('from') ||
+          lineStr.includes('const ') ||
+          lineStr.includes('new ') ||
+          lineStr.includes('vec3 ') ||
+          lineStr.includes('float ')
+        ) {
+          osCtx.fillStyle = '#38bdf8'; // Palabras clave
+        } else if (
+          lineStr.includes('uRs') ||
+          lineStr.includes('uDisk') ||
+          lineStr.includes('scene') ||
+          lineStr.includes('camera') ||
+          lineStr.includes('renderer') ||
+          lineStr.includes('accel') ||
+          lineStr.includes('beaming')
+        ) {
+          osCtx.fillStyle = '#fbbf24'; // Variables / Uniforms
+        } else if (lineStr.includes('"three"') || lineStr.includes('"high-performance"')) {
+          osCtx.fillStyle = '#34d399'; // Strings
+        } else {
+          osCtx.fillStyle = '#e2e8f0'; // Texto general
         }
 
-        osCtx.fillText(subStr, edX + 52, yPos);
-
-        cursorX = edX + 52 + osCtx.measureText(subStr).width;
+        osCtx.fillText(subStr, edX + 50, yPos);
+        cursorX = edX + 50 + osCtx.measureText(subStr).width;
         cursorY = yPos;
       }
 
-      if (Math.floor(time * 4) % 2 === 0) {
-        osCtx.fillStyle = '#2563eb';
-        osCtx.fillRect(cursorX + 3, cursorY - 16, 9, 20);
+      // Cursor parpadeante rápido
+      if (Math.floor(time * 5) % 2 === 0) {
+        osCtx.fillStyle = '#38bdf8';
+        osCtx.fillRect(cursorX + 2, cursorY - 14, 8, 17);
       }
 
-      osCtx.fillStyle = '#03050a';
-      osCtx.fillRect(edX + 12, edY + edH - 62, edW - 24, 50);
-      osCtx.fillStyle = '#10b981';
-      osCtx.font = '13px monospace';
-      osCtx.fillText('➜ Local: http://localhost:5173/portfolio-website/#about', edX + 22, edY + edH - 36);
-      osCtx.fillStyle = '#60a5fa';
+      // Terminal inferior de VS Code con estado reactivo de compilación
+      const termH = 62;
+      const termY = edY + edH - termH - 8;
+      osCtx.fillStyle = '#02040a';
+      osCtx.beginPath();
+      osCtx.roundRect(edX + 10, termY, edW - 20, termH, 8);
+      osCtx.fill();
+      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      osCtx.lineWidth = 1.2;
+      osCtx.stroke();
+
+      osCtx.fillStyle = '#38bdf8';
+      osCtx.font = '11.5px monospace';
       osCtx.fillText(
-        `✓ Compilando Portafolio <JM/> (${Math.round(typingProgress * 100)}%)`,
+        `➜ WebGL2 Shader: Compilando en cámara rápida (${Math.round(typingProgress * 100)}%)`,
         edX + 22,
-        edY + edH - 16
+        termY + 24
+      );
+      osCtx.fillStyle = typingProgress >= 1 ? '#10b981' : '#fbbf24';
+      osCtx.fillText(
+        typingProgress < 0.22
+          ? '⚡ Etapa 1/4: Generando WebGLRenderer & Orthographic Quad...'
+          : typingProgress < 0.48
+          ? '⚡ Etapa 2/4: Calculando Horizonte de Sucesos & Órbita ISCO...'
+          : typingProgress < 0.72
+          ? '⚡ Etapa 3/4: Trazando Geodésicas Nulas & Desviación de Luz...'
+          : '✓ Etapa 4/4: Disco de Acreción & Beaming Doppler Activos [60 FPS]',
+        edX + 22,
+        termY + 46
       );
 
+      // -----------------------------------------------------------------------
+      // Panel Derecho: Navegador con simulación interactiva 3D de Gargantua
+      // -----------------------------------------------------------------------
       const brX = 612;
       const brY = 18;
       const brW = w - 632;
@@ -1467,166 +1953,331 @@ const Computer3D: React.FC = () => {
       osCtx.lineWidth = 2;
       osCtx.stroke();
 
+      // Barra superior del navegador
       osCtx.fillStyle = '#091228';
       osCtx.beginPath();
       osCtx.roundRect(brX, brY, brW, 42, [12, 12, 0, 0]);
       osCtx.fill();
 
+      // Botones de control del navegador
+      ['#ff5f56', '#ffbd2e', '#27c93f'].forEach((c, idx) => {
+        osCtx.fillStyle = c;
+        osCtx.beginPath();
+        osCtx.arc(brX + 20 + idx * 16, brY + 21, 5, 0, Math.PI * 2);
+        osCtx.fill();
+      });
+
+      // Pestaña activa
       osCtx.fillStyle = '#04070e';
       osCtx.beginPath();
-      osCtx.roundRect(brX + 16, brY + 8, brW - 135, 26, 13);
+      osCtx.roundRect(brX + 78, brY + 6, 210, 30, [6, 6, 0, 0]);
       osCtx.fill();
-
-      osCtx.fillStyle = '#60a5fa';
-      osCtx.font = '12px Inter, sans-serif';
-      osCtx.fillText('🔒 localhost:5173/portfolio-website/#about', brX + 32, brY + 25);
-
-      osCtx.strokeStyle = 'rgba(37, 99, 235, 0.85)';
-      osCtx.beginPath();
-      osCtx.roundRect(brX + brW - 108, brY + 8, 94, 26, 13);
-      osCtx.stroke();
-      osCtx.fillStyle = '#ffffff';
+      osCtx.fillStyle = '#f8fafc';
       osCtx.font = 'bold 11px Inter, sans-serif';
-      osCtx.fillText('⬇ Descargar CV', brX + brW - 100, brY + 25);
+      osCtx.fillText('🌌 Gargantua — Raymarching 3D', brX + 90, brY + 24);
 
-      const vpX = brX + 20;
-      const vpY = brY + 56;
-      const vpW = brW - 40;
+      // Barra de dirección URL
+      osCtx.fillStyle = '#081024';
+      osCtx.beginPath();
+      osCtx.roundRect(brX + 298, brY + 8, brW - 425, 26, 13);
+      osCtx.fill();
+      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      osCtx.lineWidth = 1;
+      osCtx.stroke();
 
-      if (typingProgress > 0.1) {
-        osCtx.fillStyle = '#081024';
-        osCtx.strokeStyle = 'rgba(37, 99, 235, 0.7)';
-        osCtx.beginPath();
-        osCtx.roundRect(vpX, vpY, 74, 34, 17);
-        osCtx.fill();
-        osCtx.stroke();
+      osCtx.fillStyle = '#38bdf8';
+      osCtx.font = '11px Inter, sans-serif';
+      osCtx.fillText('🔒 localhost:5173/gargantua-blackhole/', brX + 312, brY + 25);
 
-        osCtx.fillStyle = '#ffffff';
-        osCtx.font = '900 14px Inter, sans-serif';
-        osCtx.fillText('<', vpX + 14, vpY + 22);
-        osCtx.fillStyle = '#3b82f6';
-        osCtx.fillText('JM', vpX + 25, vpY + 22);
-        osCtx.fillStyle = '#ffffff';
-        osCtx.fillText('/>', vpX + 47, vpY + 22);
+      // Badge Three.js
+      osCtx.fillStyle = 'rgba(37, 99, 235, 0.25)';
+      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+      osCtx.beginPath();
+      osCtx.roundRect(brX + brW - 118, brY + 8, 106, 26, 13);
+      osCtx.fill();
+      osCtx.stroke();
 
-        osCtx.fillStyle = 'rgba(8, 16, 36, 0.92)';
-        osCtx.beginPath();
-        osCtx.roundRect(vpX + 92, vpY, vpW - 92, 34, 17);
-        osCtx.fill();
-        osCtx.stroke();
+      osCtx.fillStyle = '#38bdf8';
+      osCtx.font = 'bold 10px Inter, sans-serif';
+      osCtx.fillText('● THREE.JS 3D', brX + brW - 105, brY + 25);
 
-        osCtx.fillStyle = 'rgba(37, 99, 235, 0.55)';
-        osCtx.beginPath();
-        osCtx.roundRect(vpX + 98, vpY + 4, 64, 26, 13);
-        osCtx.fill();
+      // Viewport del navegador donde se renderiza Gargantua en vivo
+      const vpX = brX + 14;
+      const vpY = brY + 48;
+      const vpW = brW - 28;
+      const vpH = brH - 58;
 
-        osCtx.fillStyle = '#ffffff';
-        osCtx.font = '600 12px Inter, sans-serif';
-        osCtx.fillText('Inicio', vpX + 114, vpY + 21);
+      // -----------------------------------------------------------------------
+      // Renderizado progresivo del visor según lo que se va escribiendo en código
+      // -----------------------------------------------------------------------
+      osCtx.save();
+      osCtx.beginPath();
+      osCtx.roundRect(vpX, vpY, vpW, vpH, [0, 0, 10, 10]);
+      osCtx.clip();
 
-        osCtx.fillStyle = '#d4d4d8';
-        osCtx.fillText('Sobre mí     Habilidades     Proyectos     Contacto', vpX + 178, vpY + 21);
-      }
+      if (typingProgress < 0.22) {
+        // ETAPA 1: Setup inicial de Three.js y WebGLRenderer
+        // Fondo azul espacial con rejilla holográfica y blueprint
+        osCtx.fillStyle = '#030718';
+        osCtx.fillRect(vpX, vpY, vpW, vpH);
 
-      if (typingProgress > 0.32) {
-        const glowGrad = osCtx.createRadialGradient(
-          vpX + 260,
-          vpY + 180,
-          10,
-          vpX + 260,
-          vpY + 180,
-          260
-        );
-        glowGrad.addColorStop(0, 'rgba(37, 99, 235, 0.38)');
-        glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        osCtx.fillStyle = glowGrad;
-        osCtx.fillRect(vpX, vpY + 45, vpW, 260);
-
-        osCtx.fillStyle = '#52525b';
-        osCtx.font = '900 44px Inter, sans-serif';
-        osCtx.fillText('DESARROLLADOR', vpX + 13, vpY + 129);
-        osCtx.fillStyle = '#f4f4f5';
-        osCtx.fillText('DESARROLLADOR', vpX + 10, vpY + 126);
-
-        osCtx.fillStyle = '#1e3a8a';
-        osCtx.font = '900 48px Inter, sans-serif';
-        osCtx.fillText('FRONTEND', vpX + 55, vpY + 186);
-        osCtx.fillStyle = '#2563eb';
-        osCtx.fillText('FRONTEND', vpX + 52, vpY + 183);
-      }
-
-      if (typingProgress > 0.58) {
-        const btnGrad = osCtx.createLinearGradient(vpX + 12, vpY + 220, vpX + 142, vpY + 268);
-        btnGrad.addColorStop(0, '#2563eb');
-        btnGrad.addColorStop(1, '#1d4ed8');
-        osCtx.fillStyle = btnGrad;
-        osCtx.beginPath();
-        osCtx.roundRect(vpX + 12, vpY + 220, 128, 46, 12);
-        osCtx.fill();
-
-        osCtx.fillStyle = '#ffffff';
-        osCtx.font = 'bold 14px Inter, sans-serif';
-        osCtx.fillText('Ver proyectos', vpX + 28, vpY + 248);
-
-        osCtx.fillStyle = '#12131a';
-        osCtx.strokeStyle = '#27272a';
-        osCtx.beginPath();
-        osCtx.roundRect(vpX + 154, vpY + 220, 124, 46, 12);
-        osCtx.fill();
-        osCtx.stroke();
-
-        osCtx.fillStyle = '#f4f4f5';
-        osCtx.fillText('Contactarme', vpX + 172, vpY + 248);
-
-        const badgeX = vpX + vpW - 215;
-        const badgeY = vpY + 210;
-        osCtx.fillStyle = 'rgba(6, 12, 26, 0.94)';
-        osCtx.strokeStyle = 'rgba(37, 99, 235, 0.65)';
-        osCtx.beginPath();
-        osCtx.roundRect(badgeX, badgeY, 210, 68, 12);
-        osCtx.fill();
-        osCtx.stroke();
-
-        osCtx.fillStyle = '#a1a1aa';
-        osCtx.font = '12px Inter, sans-serif';
-        osCtx.fillText('Disponible para', badgeX + 18, badgeY + 26);
-
-        osCtx.fillStyle = '#10b981';
-        osCtx.beginPath();
-        osCtx.arc(badgeX + 24, badgeY + 48, 5, 0, Math.PI * 2);
-        osCtx.fill();
-
-        osCtx.fillStyle = '#ffffff';
-        osCtx.font = 'bold 14px Inter, sans-serif';
-        osCtx.fillText('Nuevos proyectos', badgeX + 38, badgeY + 53);
-      }
-
-      if (typingProgress > 0.78) {
-        const skills = ['HTML5 & CSS3', 'JavaScript / React', 'Three.js WebGL'];
-        const cardW = (vpW - 32) / 3;
-        skills.forEach((sk, idx) => {
-          const cx = vpX + idx * (cardW + 16);
-          const cy = vpY + 305;
-
-          osCtx.fillStyle = '#081024';
+        // Rejilla de coordenadas de calibración
+        osCtx.strokeStyle = 'rgba(37, 99, 235, 0.2)';
+        osCtx.lineWidth = 1;
+        const gridStep = 36;
+        for (let gx = vpX; gx < vpX + vpW; gx += gridStep) {
           osCtx.beginPath();
-          osCtx.roundRect(cx, cy, cardW, 110, 10);
+          osCtx.moveTo(gx, vpY);
+          osCtx.lineTo(gx, vpY + vpH);
+          osCtx.stroke();
+        }
+        for (let gy = vpY; gy < vpY + vpH; gy += gridStep) {
+          osCtx.beginPath();
+          osCtx.moveTo(vpX, gy);
+          osCtx.lineTo(vpX + vpW, gy);
+          osCtx.stroke();
+        }
+
+        // Retícula central giratoria
+        const midX = vpX + vpW / 2;
+        const midY = vpY + vpH / 2;
+        osCtx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+        osCtx.lineWidth = 1.5;
+        osCtx.beginPath();
+        osCtx.arc(midX, midY, 55 + Math.sin(time * 12) * 6, 0, Math.PI * 2);
+        osCtx.stroke();
+
+        osCtx.strokeStyle = 'rgba(37, 99, 235, 0.8)';
+        osCtx.beginPath();
+        osCtx.arc(midX, midY, 110, 0, Math.PI * 2);
+        osCtx.stroke();
+
+        osCtx.beginPath();
+        osCtx.moveTo(midX - 130, midY);
+        osCtx.lineTo(midX + 130, midY);
+        osCtx.moveTo(midX, midY - 130);
+        osCtx.lineTo(midX, midY + 130);
+        osCtx.stroke();
+
+        // Banner informativo
+        osCtx.fillStyle = 'rgba(5, 10, 24, 0.9)';
+        osCtx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+        osCtx.beginPath();
+        osCtx.roundRect(midX - 210, midY - 34, 420, 68, 8);
+        osCtx.fill();
+        osCtx.stroke();
+
+        osCtx.fillStyle = '#38bdf8';
+        osCtx.font = 'bold 13px monospace';
+        osCtx.fillText('⚡ ETAPA 1: INICIALIZANDO THREE.JS WEBGL RENDERER', midX - 190, midY - 10);
+
+        const progStage1 = typingProgress / 0.22;
+        osCtx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+        osCtx.fillRect(midX - 190, midY + 8, 380, 12);
+        osCtx.fillStyle = '#38bdf8';
+        osCtx.fillRect(midX - 190, midY + 8, 380 * progStage1, 12);
+
+      } else if (typingProgress < 0.48) {
+        // ETAPA 2: Uniforms de Schwarzschild (Horizonte de Sucesos y Órbita ISCO)
+        osCtx.fillStyle = '#02040b';
+        osCtx.fillRect(vpX, vpY, vpW, vpH);
+
+        const midX = vpX + vpW / 2;
+        const midY = vpY + vpH / 2;
+
+        // Ondas de gravedad concéntricas
+        const numRings = 7;
+        for (let r = 1; r <= numRings; r++) {
+          const radius = r * 28 + ((time * 30) % 28);
+          const alpha = Math.max(0, 0.6 - radius / 240);
+          osCtx.strokeStyle = `rgba(56, 189, 248, ${alpha.toFixed(2)})`;
+          osCtx.lineWidth = 1.2;
+          osCtx.beginPath();
+          osCtx.arc(midX, midY, radius, 0, Math.PI * 2);
+          osCtx.stroke();
+        }
+
+        // Esfera del Horizonte de Sucesos r_s = 1.0 (Negro Absoluto)
+        const horizonR = 48;
+        const sphereGrad = osCtx.createRadialGradient(midX, midY, 10, midX, midY, horizonR);
+        sphereGrad.addColorStop(0, '#000000');
+        sphereGrad.addColorStop(0.85, '#020308');
+        sphereGrad.addColorStop(1, 'rgba(56, 189, 248, 0.4)');
+        osCtx.fillStyle = sphereGrad;
+        osCtx.beginPath();
+        osCtx.arc(midX, midY, horizonR, 0, Math.PI * 2);
+        osCtx.fill();
+        osCtx.strokeStyle = '#38bdf8';
+        osCtx.lineWidth = 2;
+        osCtx.stroke();
+
+        // Anillo de órbita ISCO (r = 2.2)
+        osCtx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+        osCtx.lineWidth = 2.5;
+        osCtx.setLineDash([8, 6]);
+        osCtx.beginPath();
+        osCtx.ellipse(midX, midY, 110, 42, -0.15, 0, Math.PI * 2);
+        osCtx.stroke();
+        osCtx.setLineDash([]);
+
+        // HUD informativo Etapa 2
+        osCtx.fillStyle = 'rgba(5, 10, 24, 0.88)';
+        osCtx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+        osCtx.beginPath();
+        osCtx.roundRect(midX - 220, midY + 95, 440, 50, 8);
+        osCtx.fill();
+        osCtx.stroke();
+
+        osCtx.fillStyle = '#fbbf24';
+        osCtx.font = 'bold 12px monospace';
+        osCtx.fillText('⚡ ETAPA 2: HORIZONTE DE SUCESOS & ÓRBITA ISCO', midX - 200, midY + 116);
+        osCtx.fillStyle = '#94a3b8';
+        osCtx.font = '11px Inter, sans-serif';
+        osCtx.fillText('Radio Schwarzschild r_s = 1.00  |  ISCO fotónico r = 2.20', midX - 200, midY + 134);
+
+      } else if (typingProgress < 0.72) {
+        // ETAPA 3: Curvatura Geodésica de la Luz (Lente gravitacional doblando estrellas sin disco aún)
+        if (bhRenderer && bhScene && bhCamera && bhUniforms) {
+          const dtFrame = Math.min(time - bhLastTime, 0.1);
+          bhLastTime = time;
+
+          bhUniforms.iTime.value = time;
+          (bhUniforms.uTravel.value as THREE.Vector3).addScaledVector(bhTravelVelocity, dtFrame);
+          bhUniforms.uAxisTilt.value = 0.05 * Math.sin(time * 0.35);
+
+          // Disco apagado en etapa 3 para mostrar la lente pura de Einstein
+          bhUniforms.uDiskOuter.value = 0.0;
+          bhUniforms.uExposure.value = 1.1;
+
+          const bhTheta = time * 0.18;
+          const bhPhi = 1.35 + Math.sin(time * 0.22) * 0.06;
+          const bhRadius = 33.0;
+
+          const cPos = bhUniforms.camPos.value as THREE.Vector3;
+          cPos.set(
+            bhRadius * Math.sin(bhPhi) * Math.sin(bhTheta),
+            bhRadius * Math.cos(bhPhi),
+            bhRadius * Math.sin(bhPhi) * Math.cos(bhTheta)
+          );
+
+          const cFwd = bhUniforms.camForward.value as THREE.Vector3;
+          cFwd.copy(cPos).multiplyScalar(-1).normalize();
+
+          const wUp = new THREE.Vector3(0, 1, 0);
+          const cRight = bhUniforms.camRight.value as THREE.Vector3;
+          cRight.crossVectors(cFwd, wUp).normalize();
+
+          const cUp = bhUniforms.camUp.value as THREE.Vector3;
+          cUp.crossVectors(cRight, cFwd).normalize();
+
+          bhRenderer.render(bhScene, bhCamera);
+          osCtx.drawImage(bhCanvas, vpX, vpY, vpW, vpH);
+
+          // HUD Etapa 3
+          osCtx.fillStyle = 'rgba(5, 10, 24, 0.82)';
+          osCtx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+          osCtx.beginPath();
+          osCtx.roundRect(vpX + 16, vpY + 14, 310, 48, 6);
           osCtx.fill();
-          osCtx.strokeStyle = 'rgba(37, 99, 235, 0.6)';
           osCtx.stroke();
 
-          osCtx.fillStyle = '#60a5fa';
-          osCtx.font = 'bold 13px Inter, sans-serif';
-          osCtx.fillText(sk, cx + 14, cy + 30);
+          osCtx.fillStyle = '#38bdf8';
+          osCtx.font = 'bold 12px monospace';
+          osCtx.fillText('⚡ ETAPA 3: CURVATURA GEODÉSICA DE LA LUZ', vpX + 28, vpY + 34);
+          osCtx.fillStyle = '#94a3b8';
+          osCtx.font = '10.5px Inter, sans-serif';
+          osCtx.fillText('Desviando campo estelar por métrica relativista', vpX + 28, vpY + 50);
+        }
 
-          for (let b = 0; b < 7; b++) {
-            const bh =
-              10 + Math.abs(Math.sin(time * 6 + idx + b)) * (28 + soundEngine.bassIntensity * 18);
-            osCtx.fillStyle = b % 2 === 0 ? '#2563eb' : '#3b82f6';
-            osCtx.fillRect(cx + 16 + b * 20, cy + 96 - bh, 12, bh);
-          }
-        });
+      } else {
+        // ETAPA 4: ¡Disco de Acreción encendiéndose, Doppler Beaming y simulación completa!
+        if (bhRenderer && bhScene && bhCamera && bhUniforms) {
+          const dtFrame = Math.min(time - bhLastTime, 0.1);
+          bhLastTime = time;
+
+          bhUniforms.iTime.value = time;
+          (bhUniforms.uTravel.value as THREE.Vector3).addScaledVector(bhTravelVelocity, dtFrame);
+          bhUniforms.uAxisTilt.value = 0.05 * Math.sin(time * 0.35);
+
+          // Expansión fluida del disco de acreción al compilar las fórmulas
+          const diskProgress = Math.min(1, (typingProgress - 0.72) / 0.25);
+          bhUniforms.uDiskOuter.value = 2.2 + diskProgress * (19.5 - 2.2);
+          bhUniforms.uExposure.value = 0.9 + diskProgress * 0.6;
+
+          const bhTheta = time * 0.18;
+          const bhPhi = 1.35 + Math.sin(time * 0.22) * 0.06;
+          const bhRadius = 33.0;
+
+          const cPos = bhUniforms.camPos.value as THREE.Vector3;
+          cPos.set(
+            bhRadius * Math.sin(bhPhi) * Math.sin(bhTheta),
+            bhRadius * Math.cos(bhPhi),
+            bhRadius * Math.sin(bhPhi) * Math.cos(bhTheta)
+          );
+
+          const cFwd = bhUniforms.camForward.value as THREE.Vector3;
+          cFwd.copy(cPos).multiplyScalar(-1).normalize();
+
+          const wUp = new THREE.Vector3(0, 1, 0);
+          const cRight = bhUniforms.camRight.value as THREE.Vector3;
+          cRight.crossVectors(cFwd, wUp).normalize();
+
+          const cUp = bhUniforms.camUp.value as THREE.Vector3;
+          cUp.crossVectors(cRight, cFwd).normalize();
+
+          bhRenderer.render(bhScene, bhCamera);
+          osCtx.drawImage(bhCanvas, vpX, vpY, vpW, vpH);
+
+          // Telemetría HUD completa en vivo
+          osCtx.fillStyle = 'rgba(5, 10, 24, 0.8)';
+          osCtx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+          osCtx.lineWidth = 1;
+
+          osCtx.beginPath();
+          osCtx.roundRect(vpX + 16, vpY + 14, 275, 46, 6);
+          osCtx.fill();
+          osCtx.stroke();
+
+          osCtx.fillStyle = '#fbbf24';
+          osCtx.font = 'bold 12px Inter, monospace';
+          osCtx.fillText('GARGANTUA // SCHWARZSCHILD 3D', vpX + 28, vpY + 32);
+
+          osCtx.fillStyle = '#94a3b8';
+          osCtx.font = '10px Inter, sans-serif';
+          osCtx.fillText('Curvatura Espacio-Tiempo • Geodesic Raymarching', vpX + 28, vpY + 48);
+
+          // Badge superior derecha: WEBGL 60 FPS
+          osCtx.beginPath();
+          osCtx.roundRect(vpX + vpW - 140, vpY + 14, 124, 26, 6);
+          osCtx.fill();
+          osCtx.stroke();
+
+          osCtx.fillStyle = '#10b981';
+          osCtx.beginPath();
+          osCtx.arc(vpX + vpW - 126, vpY + 27, 4, 0, Math.PI * 2);
+          osCtx.fill();
+
+          osCtx.fillStyle = '#f8fafc';
+          osCtx.font = 'bold 10.5px monospace';
+          osCtx.fillText('WEBGL 60 FPS', vpX + vpW - 114, vpY + 31);
+
+          // Barra de telemetría inferior
+          osCtx.beginPath();
+          osCtx.roundRect(vpX + 16, vpY + vpH - 46, vpW - 32, 34, 6);
+          osCtx.fill();
+          osCtx.stroke();
+
+          osCtx.fillStyle = '#38bdf8';
+          osCtx.font = '11px monospace';
+          osCtx.fillText(
+            'r_s: 1.00  |  ISCO: 2.20  |  Disco: 19.50  |  Doppler Beaming: 1.8x  |  Lente Gravitacional Activa',
+            vpX + 26,
+            vpY + vpH - 24
+          );
+        }
       }
+
+      osCtx.restore();
     }
 
     function drawMatrixMode(w: number, h: number) {
@@ -2058,6 +2709,15 @@ const Computer3D: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       if (soundEngine.ctx) {
         soundEngine.ctx.close().catch(() => {});
+      }
+      if (bhRenderer) {
+        bhRenderer.dispose();
+      }
+      if (bhMaterial) {
+        bhMaterial.dispose();
+      }
+      if (bhMesh) {
+        bhMesh.geometry.dispose();
       }
       renderer.dispose();
     };

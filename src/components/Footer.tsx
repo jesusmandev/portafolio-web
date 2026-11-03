@@ -1,7 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-
-/* Load Bebas Neue from Google Fonts */
-const bebasNeueStyle = `@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');`;
+import Footer3DText from './Footer3DText';
 import {
   motion,
   useInView,
@@ -327,47 +325,8 @@ const Footer: React.FC = () => {
             className="w-full mx-auto"
             style={{ maxWidth: '1400px', padding: '80px clamp(24px, 6vw, 90px) 48px' }}
           >
-            {/* ── Marquee JESUSDEV.CO ── */}
-            <style>{bebasNeueStyle}</style>
-            <div
-              className="w-full overflow-hidden mb-16 select-none"
-            >
-              <motion.div
-                style={{
-                  display: 'flex',
-                  whiteSpace: 'nowrap',
-                }}
-                animate={{ x: ['0%', '-50%'] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 18,
-                  ease: 'linear',
-                }}
-              >
-                {/* Duplicate the text so the loop is seamless */}
-                {[...Array(2)].map((_, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 'clamp(80px, 12vw, 160px)',
-                      letterSpacing: '0.04em',
-                      color: 'rgba(255,255,255,0.08)',
-                      lineHeight: 1,
-                      paddingRight: '0.6em',
-                      display: 'inline-block',
-                    }}
-                  >
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <React.Fragment key={j}>
-                        JESUSDEV.CO
-                        <span style={{ color: 'rgba(37,99,235,0.25)', marginRight: '0.4em', marginLeft: '0.4em' }}>·</span>
-                      </React.Fragment>
-                    ))}
-                  </span>
-                ))}
-              </motion.div>
-            </div>
+            {/* ── 3D JESUSDEV.CO Text ── */}
+            <Footer3DText />
 
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr] gap-16 lg:gap-12 mb-16">
@@ -409,12 +368,12 @@ const Footer: React.FC = () => {
                 <h4 className="text-white font-bold text-sm uppercase tracking-[0.2em]">Contacto</h4>
                 <ul className="flex flex-col gap-4">
                   <li>
-                    <AnimatedLink href="https://wa.me/573042962947" external>
+                    <AnimatedLink href="https://wa.me/573136480349" external>
                       <span className="flex items-center gap-3">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                         </svg>
-                        +57 304 296 2947
+                        +57 313 648 0349
                       </span>
                     </AnimatedLink>
                   </li>

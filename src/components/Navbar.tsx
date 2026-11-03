@@ -23,7 +23,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDownloadCV }) => {
 
   useEffect(() => {
     let rafId = 0;
-    const sections = ['home', 'about', 'skills', 'projects', 'contact'];
+    const sections = ['home', 'about', 'skills', 'projects', 'testimonials', 'contact'];
 
     const checkActiveSection = () => {
       rafId = 0;
@@ -63,6 +63,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDownloadCV }) => {
     { id: 'about', label: 'Sobre mí' },
     { id: 'skills', label: 'Habilidades' },
     { id: 'projects', label: 'Proyectos' },
+    { id: 'testimonials', label: 'Testimonios' },
     { id: 'contact', label: 'Contacto' },
   ];
 
@@ -103,6 +104,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDownloadCV }) => {
             { label: 'Sobre mí', href: '#about' },
             { label: 'Habilidades', href: '#skills' },
             { label: 'Proyectos', href: '#projects' },
+            { label: 'Testimonios', href: '#testimonials' },
             { label: 'Contacto', href: '#contact' },
           ]}
           activeHref={`#${activeSection || 'home'}`}

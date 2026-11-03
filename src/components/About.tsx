@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, type Variants } from 'framer-motion';
 import AboutModel3D from './AboutModel3D';
+import AboutFreelancer3D from './AboutFreelancer3D';
 
 
 const About: React.FC = () => {
@@ -37,6 +38,9 @@ const About: React.FC = () => {
   return (
     <section id="about" className="relative w-full min-h-screen flex flex-col justify-center py-20 overflow-hidden bg-[#050505] z-10">
       
+      {/* 3D "FREELANCER" White Letters on Floor Background */}
+      <AboutFreelancer3D />
+
       {/* Background Subtle Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-[#2563eb]/5 blur-[120px] rounded-full pointer-events-none" />
 
@@ -90,12 +94,12 @@ const About: React.FC = () => {
                 Hola, soy Jesús Martínez.
               </motion.h3>
 
-              <motion.p variants={itemVariants} className="text-xl sm:text-2xl lg:text-3xl text-[#3b82f6] font-semibold leading-snug drop-shadow-[0_0_105px_rgba(37,99,235,0.2)]">
+              <motion.p variants={itemVariants} className="text-xl sm:text-2xl lg:text-3xl text-[#60a5fa] font-bold leading-snug drop-shadow-[0_0_40px_rgba(37,99,235,0.3)]">
                 Desarrollador Frontend — Transformo ideas y diseños en sitios web reales que funcionan y generan resultados.
               </motion.p>
             </div>
 
-           <motion.p variants={itemVariants} className="text-gray-400 text-base sm:text-lg leading-relaxed max-w-2xl font-light">
+            <motion.p variants={itemVariants} className="text-zinc-200 text-base sm:text-lg leading-relaxed max-w-2xl font-normal drop-shadow-sm">
               Muchos negocios y proyectos se quedan estancados entre una gran idea y un sitio web que realmente funcione. Yo cierro esa brecha: tomo tu diseño en Figma o concepto de landing page y lo convierto en un sitio real, rápido y pixel-perfect. Combino código limpio con una gran atención al detalle visual, para que tu presencia digital no solo luzca increíble, sino que cargue rápido, funcione en cualquier dispositivo y ayude a tu negocio a atraer más clientes. Cuando el proyecto lo requiere, también integro experiencias 3D interactivas con Three.js — ese toque extra que hace que un sitio sea memorable, no solo visitable.
             </motion.p>
 
@@ -130,27 +134,27 @@ const About: React.FC = () => {
               ].map((strength, i) => (
                 <div 
                   key={i}
-                  className="group flex flex-col items-start text-left justify-start py-5 px-6 min-h-30 rounded-xl bg-linear-to-br from-white/4 to-white/1 border border-white/5 backdrop-blur-sm transition-all duration-300 hover:bg-white/6 hover:border-[#2563eb]/40 hover:-translate-y-1.25 hover:shadow-[0_10px_20px_rgba(37,99,235,0.18)]"
+                  className="group flex flex-col items-start text-left justify-start py-5 px-6 min-h-30 rounded-2xl bg-[#0c111e]/90 border border-white/15 backdrop-blur-xl transition-all duration-300 hover:bg-[#12192e] hover:border-[#2563eb]/60 hover:-translate-y-1.5 hover:shadow-[0_12px_28px_rgba(37,99,235,0.22)] shadow-xl shadow-black/50"
                 >
-                  <div className="text-2xl mb-3 opacity-90 group-hover:scale-110 transition-transform">
+                  <div className="text-2xl mb-3 group-hover:scale-110 transition-transform">
                     {strength.icon}
                   </div>
-                  <h4 className="text-white font-bold text-base mb-1 leading-snug">{strength.title}</h4>
-                  <p className="text-gray-400 text-xs leading-relaxed">{strength.desc}</p>
+                  <h4 className="text-white font-bold text-base mb-1.5 leading-snug drop-shadow-sm">{strength.title}</h4>
+                  <p className="text-zinc-300 text-xs sm:text-sm font-normal leading-relaxed">{strength.desc}</p>
                 </div>
               ))}
             </motion.div>
 
             {/* Quote */}
-            <motion.div variants={itemVariants} className="relative bg-linear-to-r from-white/4 to-transparent border border-white/5 border-l-0 rounded-xl p-6 backdrop-blur-sm overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2563eb] shadow-[0_0_15px_rgba(37,99,235,0.65)]"></div>
-              <p className="text-white text-lg sm:text-xl font-medium italic leading-relaxed pl-2">
+            <motion.div variants={itemVariants} className="relative bg-gradient-to-r from-[#0c1222]/95 via-[#080d19]/90 to-[#050811]/85 border border-white/15 border-l-0 rounded-2xl p-6 backdrop-blur-xl shadow-xl shadow-black/50 overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#2563eb] shadow-[0_0_15px_rgba(37,99,235,0.8)]"></div>
+              <p className="text-white text-lg sm:text-xl font-semibold italic leading-relaxed pl-2 drop-shadow-sm">
                 "No solo entrego un sitio web; entrego la solución que conecta tu idea con tus clientes."
               </p>
             </motion.div>
 
             {/* Personal Info Chips */}
-            <motion.div variants={itemVariants} className="flex flex-wrap gap-5 pt-3">
+            <motion.div variants={itemVariants} className="flex flex-wrap gap-4 pt-2">
               {[
                 "📍 Montería, Colombia",
                 "💻 Desarrollador Frontend",
@@ -159,7 +163,7 @@ const About: React.FC = () => {
               ].map((chip, i) => (
                 <div 
                   key={i}
-                  className="px-5 py-2 rounded-full bg-white/3 border border-white/10 backdrop-blur-md text-gray-300 text-sm font-medium hover:bg-white/8 hover:border-white/20 transition-all duration-400 cursor-default"
+                  className="px-5 py-2.5 rounded-full bg-[#0e1424]/90 border border-white/15 backdrop-blur-xl text-zinc-100 text-sm font-medium hover:bg-[#151e36] hover:text-white hover:border-[#2563eb]/50 transition-all duration-300 shadow-md shadow-black/30 cursor-default"
                 >
                   {chip}
                 </div>
