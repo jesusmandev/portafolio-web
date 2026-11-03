@@ -80,7 +80,7 @@ const IntroScreen: React.FC<IntroScreenProps> = ({ onEnter }) => {
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.5, duration: 1 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
           onClick={onEnter}
           className="pointer-events-auto px-16 py-4 md:px-24 md:py-5 bg-transparent border border-white/30  hover:border-[#2563eb] text-white rounded-full transition-all duration-300 hover:shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:bg-[#2563eb]/10 group"
         >

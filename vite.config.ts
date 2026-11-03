@@ -37,7 +37,16 @@ export default defineConfig({
     securityHeadersPlugin(),
   ],
   build: {
-    sourcemap: false, // no exponer el código fuente original
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'three-core': ['three'],
+          'framer-motion': ['framer-motion'],
+          'lucide-icons': ['lucide-react'],
+        },
+      },
+    },
   },
   server: {
     headers: {

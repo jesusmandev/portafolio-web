@@ -5,6 +5,25 @@ import AboutFreelancer3D from './AboutFreelancer3D';
 
 
 const About: React.FC = () => {
+  const [isSectionNear, setIsSectionNear] = React.useState(false);
+
+  React.useEffect(() => {
+    const section = document.getElementById('about');
+    if (!section) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setIsSectionNear(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
   // Framer Motion Variants
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -38,8 +57,8 @@ const About: React.FC = () => {
   return (
     <section id="about" className="relative w-full min-h-screen flex flex-col justify-center py-20 overflow-hidden bg-[#050505] z-10">
       
-      {/* 3D "FREELANCER" White Letters on Floor Background */}
-      <AboutFreelancer3D />
+      {/* 3D "FREELANCER" White Letters on Floor Background (carga optimizada al aproximarse) */}
+      {isSectionNear && <AboutFreelancer3D />}
 
       {/* Background Subtle Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-[#2563eb]/5 blur-[120px] rounded-full pointer-events-none" />
@@ -66,9 +85,9 @@ const About: React.FC = () => {
         {/* Main Content 2 columns */}
         <div className="w-full grid grid-cols-1 lg:grid-cols-[4.5fr_5.5fr] gap-10 lg:gap-12.5 items-center z-10">
           
-          {/* Left Column: 3D Model */}
+          {/* Left Column: 3D Model (Lazy load para no bloquear la carga inicial en móviles) */}
           <motion.div 
-            className="relative flex justify-center items-center w-full group"
+            className="relative flex justify-center items-center w-full min-h-[460px] lg:min-h-[640px] group"
             variants={imageVariants}
             initial="hidden"
             whileInView="visible"
@@ -77,7 +96,13 @@ const About: React.FC = () => {
             {/* Subtle blue glow behind 3D model */}
             <div className="absolute inset-0 bg-[#2563eb]/20 blur-[60px] rounded-full opacity-0 group-hover:opacity-60 transition-opacity duration-700 pointer-events-none"></div>
             
-            <AboutModel3D />
+            {isSectionNear ? (
+              <AboutModel3D />
+            ) : (
+              <div className="w-full h-[460px] lg:h-[640px] flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-[#2563eb] border-t-transparent rounded-full animate-spin opacity-40" />
+              </div>
+            )}
           </motion.div>
 
           {/* Right Column: Content */}

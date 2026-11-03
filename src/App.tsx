@@ -1,14 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import About from './components/About';
 import Skills from './components/Skills';
-import Projects from './components/Projects';
-import Testimonials from './components/Testimonials';
-import Contact from './components/Contact';
-import CVModal from './components/CVModal';
-
-import Footer from './components/Footer';
 import { LanguageProvider } from './hooks/useLanguage';
 import './index.css';
 
@@ -16,6 +10,13 @@ import IntroScreen from './components/IntroScreen';
 import { AnimatePresence, motion } from 'framer-motion';
 import ScrollVelocity from './components/ScrollVelocity';
 import FluidGlass from './components/FluidGlass';
+
+// Lazy load para componentes fuera del viewport inicial (optimización móvil)
+const Projects = lazy(() => import('./components/Projects'));
+const Testimonials = lazy(() => import('./components/Testimonials'));
+const Contact = lazy(() => import('./components/Contact'));
+const Footer = lazy(() => import('./components/Footer'));
+const CVModal = lazy(() => import('./components/CVModal'));
 
 const AppContent: React.FC = () => {
   const [isCVModalOpen, setIsCVModalOpen] = useState(false);
@@ -117,14 +118,18 @@ const AppContent: React.FC = () => {
           <div className="max-w-[1400px] mx-auto w-full px-6 lg:px-12 flex flex-col gap-32 pt-24 pb-14">
             <About />
             <Skills />
-            <Projects />
-            <Testimonials />
-            <Contact />
+            <Suspense fallback={<div className="min-h-[300px]" />}>
+              <Projects />
+              <Testimonials />
+              <Contact />
+            </Suspense>
           </div>
         </main>
         
-        <Footer />
-        <CVModal isOpen={isCVModalOpen} onClose={() => setIsCVModalOpen(false)} />
+        <Suspense fallback={null}>
+          <Footer />
+          <CVModal isOpen={isCVModalOpen} onClose={() => setIsCVModalOpen(false)} />
+        </Suspense>
 
       </div>
     </>

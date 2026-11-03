@@ -192,7 +192,7 @@ const AboutFreelancer3D: React.FC = () => {
       startX += item.width + SPACING;
     }
 
-    // Responsive scaling
+    // Responsive scaling: adjust dynamically so the whole word fits mobile screens
     const updateScale = () => {
       const w = getWidth();
       const h = getHeight();
@@ -200,10 +200,17 @@ const AboutFreelancer3D: React.FC = () => {
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
 
+      const isMobile = w < 768;
       const fovRad = (camera.fov * Math.PI) / 180;
-      const visibleWidth = 2 * Math.tan(fovRad / 2) * camera.position.z * camera.aspect;
-      const scaleFactor = Math.min(1.2, Math.max(0.46, (visibleWidth * 0.92) / totalWordWidth));
+      // Distance from camera (0, 5.2, 23) to ground plane (-0.5, -4.2, -1.8)
+      const dist = 26.5;
+      const visibleWidth = 2 * Math.tan(fovRad / 2) * dist * camera.aspect;
+
+      // On mobile devices, fit the entire word inside 86% of screen width without artificial clamp
+      const targetWidth = isMobile ? visibleWidth * 0.86 : visibleWidth * 0.94;
+      const scaleFactor = Math.min(1.0, targetWidth / totalWordWidth);
       textGroundGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
+      textGroundGroup.position.set(0, isMobile ? -4.9 : -4.2, -1.8);
     };
 
     updateScale();
@@ -280,10 +287,10 @@ const AboutFreelancer3D: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden z-0 opacity-55"
+      className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden z-0 opacity-60"
       style={{
-        maskImage: 'radial-gradient(ellipse 90% 85% at 45% 68%, black 45%, rgba(0,0,0,0.3) 78%, transparent 100%)',
-        WebkitMaskImage: 'radial-gradient(ellipse 90% 85% at 45% 68%, black 45%, rgba(0,0,0,0.3) 78%, transparent 100%)',
+        maskImage: 'radial-gradient(ellipse 98% 90% at 50% 68%, black 65%, rgba(0,0,0,0.35) 88%, transparent 100%)',
+        WebkitMaskImage: 'radial-gradient(ellipse 98% 90% at 50% 68%, black 65%, rgba(0,0,0,0.35) 88%, transparent 100%)',
       }}
       aria-hidden="true"
     />
