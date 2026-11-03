@@ -132,7 +132,7 @@ const Projects: React.FC = () => {
   return (
     <section
       id="projects"
-      className="relative pt-20 px-4 sm:px-8 lg:px-16 overflow-hidden"
+      className="relative pt-20 px-3 sm:px-8 lg:px-16 overflow-hidden"
     >
       {/* Decorative ambient glow */}
       <div 
@@ -142,7 +142,7 @@ const Projects: React.FC = () => {
 
       {/* Header */}
       <motion.div
-        className="flex flex-col items-center justify-center mb-12"
+        className="flex flex-col items-center justify-center mb-10 sm:mb-12"
         initial={{ opacity: 0, y: 30, filter: 'blur(10px)' }}
         whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
         viewport={{ once: true, margin: '-60px' }}
@@ -171,26 +171,26 @@ const Projects: React.FC = () => {
         viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.8, ease: [0.25, 1, 0.5, 1] as const, delay: 0.1 }}
       >
-        <div style={{ height: '520px', position: 'relative' }}>
+        <div className="h-[560px] sm:h-[530px] relative w-full">
           <DepthCarousel
             items={carouselItems}
             depth={220}
-            spread={90}
-            tilt={22}
+            spread={85}
+            tilt={20}
             tiltDirection="right"
             perspective={1400}
             visibleCards={4}
             falloff={0.2}
             blur={6}
-            autoplay={false}
+            autoplay={true}
             loop
-            cardWidth={310}
-            cardHeight={400}
-            radius={18}
+            cardWidth={330}
+            cardHeight={430}
+            radius={20}
             tint="#05060a"
-            duration={700}
-            ease="power3.out"
-            autoplayDelay={3200}
+            duration={750}
+            ease="power2.out"
+            autoplayDelay={3000}
             showControls
             showIndicators
           />

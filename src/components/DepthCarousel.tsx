@@ -162,7 +162,8 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
       el.style.display = 'block';
 
       const tz = -cfg.depth * d;
-      const tx = dir * cfg.spread * d;
+      const currentSpread = isMobile ? Math.min(cfg.spread * 0.55, 48) : cfg.spread;
+      const tx = dir * currentSpread * d;
       const ry = dir * cfg.tilt * clamp(d, 0, 1);
 
       let opacity = d < 0 ? Math.max(0, 1 + d) : 1;
@@ -253,8 +254,15 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
     const ro = new ResizeObserver(entries => {
       const w = entries[0].contentRect.width;
       const cfg = cfgRef.current;
-      const needed = cfg.cardWidth + Math.abs(cfg.spread) * 2 + 120;
-      scaleRef.current = clamp(w / needed, 0.4, 1);
+      const isMobile = w < 768;
+      if (isMobile) {
+        // En móviles: permitir que la tarjeta se muestre en tamaño completo e imponente con margen lateral adecuado
+        const needed = cfg.cardWidth + 24;
+        scaleRef.current = clamp(w / needed, 0.8, 1.05);
+      } else {
+        const needed = cfg.cardWidth + Math.abs(cfg.spread) * 2 + 120;
+        scaleRef.current = clamp(w / needed, 0.55, 1);
+      }
       layout(posRef.current);
     });
     ro.observe(root);
@@ -365,16 +373,25 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
     const root = rootRef.current;
     let hovered = false;
     let focused = false;
+    let isInteracting = false;
+    let resumeTimer: number | null = null;
+    let isVisible = true;
+
     const stop = () => {
       if (autoTimerRef.current) clearInterval(autoTimerRef.current);
       autoTimerRef.current = null;
     };
+
     const start = () => {
       stop();
+      if (!isVisible) return;
       autoTimerRef.current = window.setInterval(() => {
-        if (!hovered && !focused) navigateBy(1);
-      }, Math.max(cfgRef.current.autoplayDelay, 600));
+        if (!hovered && !focused && !isInteracting && !dragRef.current) {
+          navigateBy(1);
+        }
+      }, Math.max(cfgRef.current.autoplayDelay, 800));
     };
+
     const onEnter = () => {
       hovered = true;
     };
@@ -387,17 +404,51 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
     const onFocusOut = () => {
       focused = false;
     };
+
+    const onPointerDownHandler = () => {
+      isInteracting = true;
+      if (resumeTimer) clearTimeout(resumeTimer);
+    };
+
+    const onPointerUpHandler = () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => {
+        isInteracting = false;
+        hovered = false;
+      }, 2400);
+    };
+
     root?.addEventListener('mouseenter', onEnter);
     root?.addEventListener('mouseleave', onLeave);
     root?.addEventListener('focusin', onFocusIn);
     root?.addEventListener('focusout', onFocusOut);
-    start();
+    root?.addEventListener('pointerdown', onPointerDownHandler);
+    window.addEventListener('pointerup', onPointerUpHandler);
+
+    // Solo mover automáticamente si el carrusel está en la pantalla (ahorro de batería y rendimiento)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isVisible = entries[0].isIntersecting;
+        if (isVisible) {
+          start();
+        } else {
+          stop();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    if (root) observer.observe(root);
+
     return () => {
       stop();
+      if (resumeTimer) clearTimeout(resumeTimer);
+      observer.disconnect();
       root?.removeEventListener('mouseenter', onEnter);
       root?.removeEventListener('mouseleave', onLeave);
       root?.removeEventListener('focusin', onFocusIn);
       root?.removeEventListener('focusout', onFocusOut);
+      root?.removeEventListener('pointerdown', onPointerDownHandler);
+      window.removeEventListener('pointerup', onPointerUpHandler);
     };
   }, [autoplay, autoplayDelay, count, navigateBy]);
 
@@ -475,11 +526,11 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
             >
               <TiltedCardLayer depth={24}>
                 {/* Overlay with Badge, Title, and Buttons "Ver Web" & "Ver Código" */}
-                <div className="absolute inset-x-0 bottom-0 p-4 pb-4.5 bg-gradient-to-t from-black/95 via-black/75 to-transparent flex flex-col gap-1.5 pointer-events-none">
+                <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 pb-4.5 bg-gradient-to-t from-black/98 via-black/85 to-transparent flex flex-col gap-1.5 pointer-events-none">
                   {/* Category Pill */}
                   {item.category && (
                     <span
-                      className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full w-fit backdrop-blur-md"
+                      className="text-[10px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full w-fit backdrop-blur-md"
                       style={{
                         backgroundColor: `${item.categoryColor || '#2563eb'}25`,
                         color: item.categoryColor || '#38bdf8',
@@ -492,9 +543,16 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
 
                   {/* Project Title */}
                   {item.title && (
-                    <h4 className="text-white font-bold text-sm sm:text-base line-clamp-1 drop-shadow-md">
+                    <h4 className="text-white font-bold text-base sm:text-lg line-clamp-1 drop-shadow-md">
                       {item.title}
                     </h4>
+                  )}
+
+                  {/* Project Description */}
+                  {item.description && (
+                    <p className="text-zinc-300 text-xs sm:text-sm line-clamp-2 leading-relaxed drop-shadow">
+                      {item.description}
+                    </p>
                   )}
 
                   {/* Action Buttons: Ver Web & Ver Código */}
@@ -506,13 +564,13 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2563eb] hover:bg-blue-600 text-white font-semibold text-[11px] sm:text-xs shadow-md shadow-blue-600/30 transition-all hover:scale-105 active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#2563eb] hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm shadow-md shadow-blue-600/30 transition-all hover:scale-105 active:scale-95"
                         >
                           <span>Ver Web</span>
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
-                            width="12"
-                            height="12"
+                            width="13"
+                            height="13"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -533,11 +591,11 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.18] text-gray-200 hover:text-white font-semibold text-[11px] sm:text-xs border border-white/[0.15] backdrop-blur-md transition-all hover:scale-105 active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.18] text-gray-200 hover:text-white font-semibold text-xs sm:text-sm border border-white/[0.15] backdrop-blur-md transition-all hover:scale-105 active:scale-95"
                         >
                           <svg
-                            width="12"
-                            height="12"
+                            width="13"
+                            height="13"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -572,19 +630,19 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
         <>
           <button
             type="button"
-            className="absolute left-4 top-1/2 z-[3000] grid h-[42px] w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.65)] text-white backdrop-blur-md transition-[background,border-color,transform] duration-200 hover:border-white/50 hover:bg-[#2563eb] active:scale-95 shadow-lg"
+            className="absolute left-2 sm:left-4 top-1/2 z-[3000] grid h-[38px] w-[38px] sm:h-[42px] sm:w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.7)] text-white backdrop-blur-md transition-[background,border-color,transform] duration-200 hover:border-white/50 hover:bg-[#2563eb] active:scale-95 shadow-lg"
             aria-label="Previous slide"
             onClick={e => {
               e.stopPropagation();
               navigateBy(-1);
             }}
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path
                 d="M15 5l-7 7 7 7"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -592,19 +650,19 @@ const DepthCarousel: React.FC<DepthCarouselProps> = ({
           </button>
           <button
             type="button"
-            className="absolute right-4 top-1/2 z-[3000] grid h-[42px] w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.65)] text-white backdrop-blur-md transition-[background,border-color,transform] duration-200 hover:border-white/50 hover:bg-[#2563eb] active:scale-95 shadow-lg"
+            className="absolute right-2 sm:right-4 top-1/2 z-[3000] grid h-[38px] w-[38px] sm:h-[42px] sm:w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.7)] text-white backdrop-blur-md transition-[background,border-color,transform] duration-200 hover:border-white/50 hover:bg-[#2563eb] active:scale-95 shadow-lg"
             aria-label="Next slide"
             onClick={e => {
               e.stopPropagation();
               navigateBy(1);
             }}
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path
                 d="M9 5l7 7-7 7"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
