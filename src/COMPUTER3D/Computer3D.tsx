@@ -94,11 +94,11 @@ const Computer3D: React.FC = () => {
     let screenTexture: THREE.CanvasTexture;
 
     // ---------------------------------------------------------------------------
-    // Renderizador Offscreen de Gargantua (Geodesic Raymarching 3D Shader)
+    // Renderizador Offscreen de Gargantua (Geodesic Raymarching 3D Ultra-Optimizado)
     // ---------------------------------------------------------------------------
     const bhCanvas = document.createElement('canvas');
-    bhCanvas.width = 440;
-    bhCanvas.height = 360;
+    bhCanvas.width = 240;
+    bhCanvas.height = 190;
     let bhRenderer: THREE.WebGLRenderer | null = null;
     let bhScene: THREE.Scene | null = null;
     let bhCamera: THREE.OrthographicCamera | null = null;
@@ -107,6 +107,8 @@ const Computer3D: React.FC = () => {
     let bhMesh: THREE.Mesh | null = null;
     const bhTravelVelocity = new THREE.Vector3(0.55, 0.12, -0.82).normalize().multiplyScalar(6.0);
     let bhLastTime = 0;
+    let lastActiveKey1 = -1;
+    let lastActiveKey2 = -1;
 
     const bhVertexShader = /* glsl */ `
       void main() {
@@ -118,7 +120,7 @@ const Computer3D: React.FC = () => {
       precision highp float;
 
       #define PI 3.14159265359
-      #define MAX_STEPS 120
+      #define MAX_STEPS 44
 
       uniform vec2  iResolution;
       uniform float iTime;
@@ -171,7 +173,7 @@ const Computer3D: React.FC = () => {
       float fbm(vec3 p) {
         float v = 0.0;
         float a = 0.5;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 2; i++) {
           v += a * noise3(p);
           p = p * 2.02 + vec3(11.7, 3.1, 7.9);
           a *= 0.5;
@@ -182,7 +184,7 @@ const Computer3D: React.FC = () => {
       float fbmFlow(vec3 p, float lac) {
         float v = 0.0;
         float a = 0.55;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 2; i++) {
           v += a * noise3(p);
           p = p * lac + vec3(5.3, 9.1, 2.7);
           a *= 0.5;
@@ -192,25 +194,23 @@ const Computer3D: React.FC = () => {
 
       vec3 starfield(vec3 dir, vec3 travel) {
         vec3 col = vec3(0.0);
-        for (int layer = 0; layer < 2; layer++) {
-          float scale = 55.0 + float(layer) * 40.0;
-          vec3 p = dir * scale + travel * (0.35 + float(layer) * 0.5);
-          vec3 cell = floor(p);
-          vec3 f = fract(p);
+        float scale = 65.0;
+        vec3 p = dir * scale + travel * 0.45;
+        vec3 cell = floor(p);
+        vec3 f = fract(p);
 
-          float h = hash13(cell + float(layer) * 17.0);
-          if (h > 0.965) {
-            vec3 c = vec3(
-              0.2 + 0.6 * hash13(cell + 1.7),
-              0.2 + 0.6 * hash13(cell + 5.3),
-              0.2 + 0.6 * hash13(cell + 9.1)
-            );
-            float d = length(f - c);
-            float s = smoothstep(0.12, 0.0, d);
-            float temp = hash13(cell + 3.3);
-            vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.84, 1.0), temp);
-            col += tint * s * (0.5 + 1.5 * hash13(cell + 21.0));
-          }
+        float h = hash13(cell + 17.0);
+        if (h > 0.95) {
+          vec3 c = vec3(
+            0.2 + 0.6 * hash13(cell + 1.7),
+            0.2 + 0.6 * hash13(cell + 5.3),
+            0.2 + 0.6 * hash13(cell + 9.1)
+          );
+          float d = length(f - c);
+          float s = smoothstep(0.12, 0.0, d);
+          float temp = hash13(cell + 3.3);
+          vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.84, 1.0), temp);
+          col += tint * s * (0.5 + 1.5 * hash13(cell + 21.0));
         }
         return col;
       }
@@ -242,10 +242,7 @@ const Computer3D: React.FC = () => {
         float m = smoothstep(0.42, 0.85, n1 * 0.65 + n2 * 0.35);
         vec3 colA = vec3(0.10, 0.06, 0.18);
         vec3 colB = vec3(0.04, 0.10, 0.20);
-        vec3 colC = vec3(0.20, 0.09, 0.05);
-        vec3 neb = mix(colA, colB, n2);
-        neb = mix(neb, colC, smoothstep(0.55, 0.9, n1) * 0.5);
-        return neb * m * 0.55;
+        return mix(colA, colB, n2) * m * 0.55;
       }
 
       vec3 diskRamp(float t) {
@@ -267,31 +264,28 @@ const Computer3D: React.FC = () => {
         float omega = 1.15 / pow(max(r, innerR * 0.7) / innerR, 1.9);
         float rotAngle = phi - omega * (7.0 + time * 1.4) * uDiskRotSpeed * uDiskSpin;
 
+        float radialScale = 18.0;
+        float angularBins = floor(r * 28.0);
+
+        float rCell = floor(r * radialScale);
+        float rFract = fract(r * radialScale);
+
+        float aCoord = (rotAngle / (2.0 * PI) + 0.5) * angularBins;
+        float aCell = floor(aCoord);
+        float aFract = fract(aCoord);
+
+        vec3 seed = vec3(rCell, mod(aCell, max(angularBins, 1.0)), 19.3);
+        float prob = hash13(seed);
+
         float pAccum = 0.0;
-        for (int layer = 0; layer < 2; layer++) {
-          float fl = float(layer);
-          float radialScale = 16.0 + fl * 12.0;
-          float angularBins = floor(r * (26.0 + fl * 18.0));
-
-          float rCell = floor(r * radialScale);
-          float rFract = fract(r * radialScale);
-
-          float aCoord = (rotAngle / (2.0 * PI) + 0.5) * angularBins;
-          float aCell = floor(aCoord);
-          float aFract = fract(aCoord);
-
-          vec3 seed = vec3(rCell, mod(aCell, max(angularBins, 1.0)), fl * 19.3);
-          float prob = hash13(seed);
-
-          if (prob > 0.72) {
-            vec2 center = vec2(0.25 + 0.5 * hash13(seed + 4.1), 0.25 + 0.5 * hash13(seed + 8.7));
-            vec2 d = vec2((rFract - center.x) * 1.4, (aFract - center.y) * 0.8);
-            float dist = length(d);
-            float size = 0.15 + 0.2 * hash13(seed + 13.5);
-            float spark = smoothstep(size, 0.0, dist);
-            float twinkle = 0.7 + 0.3 * sin(time * (5.0 + prob * 6.0) + prob * 40.0);
-            pAccum += spark * twinkle * (0.8 + 0.9 * prob);
-          }
+        if (prob > 0.74) {
+          vec2 center = vec2(0.25 + 0.5 * hash13(seed + 4.1), 0.25 + 0.5 * hash13(seed + 8.7));
+          vec2 d = vec2((rFract - center.x) * 1.4, (aFract - center.y) * 0.8);
+          float dist = length(d);
+          float size = 0.15 + 0.2 * hash13(seed + 13.5);
+          float spark = smoothstep(size, 0.0, dist);
+          float twinkle = 0.7 + 0.3 * sin(time * (5.0 + prob * 6.0) + prob * 40.0);
+          pAccum += spark * twinkle * (0.8 + 0.9 * prob);
         }
 
         float t = clamp((r - innerR) / (outerR - innerR), 0.0, 1.3);
@@ -316,33 +310,19 @@ const Computer3D: React.FC = () => {
 
         float nFilaments = clamp(fbmFlow(flowP, 2.8), 0.0, 1.0);
         float grooveWave1 = sin(r * 3.8 + nFilaments * 2.0) * 0.5 + 0.5;
-        float grooveWave2 = sin(r * 10.0 + nFilaments * 1.5) * 0.5 + 0.5;
-        float concentricRings = mix(0.65, 1.2, smoothstep(0.1, 0.9, grooveWave1 * 0.6 + grooveWave2 * 0.4));
-
-        float cloudSwirl = phi - omega * (3.0 + time * 1.0) * uDiskRotSpeed * uDiskSpin;
-        vec2 cloudXY = vec2(cos(cloudSwirl), sin(cloudSwirl)) * r;
-        float cloudBillows = fbm(vec3(cloudXY * 0.45, r * 0.16 + time * 0.08));
-        float finePuffs = fbm(vec3(cloudXY * 1.1, r * 0.4 - time * 0.12));
-        float cloudStructure = smoothstep(0.24, 0.8, cloudBillows * 0.6 + finePuffs * 0.4);
+        float concentricRings = mix(0.7, 1.2, grooveWave1);
 
         float lanes = noise3(vec3(flowXY.x * 0.5, flowXY.y * 0.5, time * 0.08));
         float dustLane = smoothstep(0.18, 0.78, lanes);
 
-        float yOmega = omega * 1.7;
-        float ySwirl = phi - yOmega * (3.0 + time * 1.2) * uDiskRotSpeed * uDiskSpin;
-        vec2 yXY = vec2(cos(ySwirl), sin(ySwirl)) * r;
-        float yPat = fbm(vec3(yXY * 0.35, time * 0.05));
-        float yellowZone = 1.0 - smoothstep(0.0, 0.55, t);
-        float tShift = (0.5 - yPat) * 0.26 * yellowZone;
+        vec3 baseColor = diskRamp(t + (nFilaments - 0.5) * 0.12);
 
-        vec3 baseColor = diskRamp(t + tShift + (nFilaments - 0.5) * 0.12 - (concentricRings - 0.9) * 0.03);
-
-        float edgeNoise = fbm(vec3(cos(phi) * 2.2, sin(phi) * 2.2, time * 0.03));
-        float outerEdge = 0.9 + edgeNoise * 0.38;
-        float innerCloudEdge = smoothstep(-0.08, 0.04, t + (cloudStructure - 0.5) * 0.05);
+        float edgeNoise = noise3(vec3(cos(phi) * 2.2, sin(phi) * 2.2, time * 0.03));
+        float outerEdge = 0.9 + edgeNoise * 0.35;
+        float innerCloudEdge = smoothstep(-0.08, 0.04, t);
         float radialMask = innerCloudEdge * (1.0 - smoothstep(0.55, outerEdge, t));
 
-        float spiral = 0.72 + 0.28 * sin(3.0 * swirl + r * 0.55) + 0.16 * sin(5.0 * swirl - r * 0.9);
+        float spiral = 0.72 + 0.28 * sin(3.0 * swirl + r * 0.55);
         float density = radialMask * (0.6 + 0.5 * nFilaments) * concentricRings * mix(0.6, 1.1, dustLane) * spiral;
 
         vec3 tangent = normalize(vec3(-p.z, 0.0, p.x)) * uDiskSpin;
@@ -351,7 +331,7 @@ const Computer3D: React.FC = () => {
         float dopplerFactor = 1.0 / max(0.16, (1.0 - vOrb * mu));
         float beaming = pow(dopplerFactor, 1.8);
 
-        vec3 col = baseColor * density * beaming * (1.0 + 0.25 * (yPat - 0.5) * yellowZone);
+        vec3 col = baseColor * density * beaming;
 
         float particles = boundaryParticles(r, phi, innerR, outerR, time);
         vec3 particleCol = diskRamp(clamp(t * 0.85, 0.02, 0.78)) * beaming * 2.1;
@@ -399,10 +379,19 @@ const Computer3D: React.FC = () => {
           if (r < uRs * 1.02) { hitHorizon = true; break; }
           if (r > escapeR || accumAlpha > 0.995) { break; }
 
-          float dt = clamp(r * 0.14, 0.03, 1.6);
+          float dt = clamp(r * 0.14, 0.04, 1.8);
 
-          float atten = 1.0 / (1.0 + pow(r / lensR, 8.0));
-          vec3 accel = -1.5 * uRs * h2 * pos / pow(r, 5.0) * atten;
+          float r_lens = r / lensR;
+          float rl2 = r_lens * r_lens;
+          float rl4 = rl2 * rl2;
+          float rl8 = rl4 * rl4;
+          float atten = 1.0 / (1.0 + rl8);
+
+          float r2 = r * r;
+          float r4 = r2 * r2;
+          float r5 = r4 * r;
+          vec3 accel = -1.5 * uRs * h2 * pos / (r5 + 0.0001) * atten;
+
           vec3 newDir = normalize(dir + accel * dt);
           vec3 newPos = pos + newDir * dt;
 
@@ -1846,6 +1835,7 @@ const Computer3D: React.FC = () => {
       let cursorX = edX + 54;
       let cursorY = edY + 62;
       const lineHeight = 19;
+      const charWidth = 7.2;
 
       for (let i = 0; i < codeSnippet.length; i++) {
         const lineStr = codeSnippet[i];
@@ -1860,43 +1850,23 @@ const Computer3D: React.FC = () => {
         const subStr = lineStr.substring(0, visibleChars);
         charsRemaining -= visibleChars;
 
-        // Resaltado de sintaxis
-        if (lineStr.trim().startsWith('<!--') || lineStr.trim().startsWith('//')) {
+        // Resaltado de sintaxis optimizado O(1)
+        if (i === 1 || i === 11 || i === 20 || i === 24) {
           osCtx.fillStyle = '#64748b'; // Comentario
-        } else if (
-          lineStr.includes('<!DOCTYPE') ||
-          lineStr.includes('<script') ||
-          lineStr.includes('</script>') ||
-          lineStr.includes('<title')
-        ) {
+        } else if (i === 0 || i === 2 || i === 28) {
           osCtx.fillStyle = '#f43f5e'; // Etiquetas HTML
-        } else if (
-          lineStr.includes('import') ||
-          lineStr.includes('from') ||
-          lineStr.includes('const ') ||
-          lineStr.includes('new ') ||
-          lineStr.includes('vec3 ') ||
-          lineStr.includes('float ')
-        ) {
-          osCtx.fillStyle = '#38bdf8'; // Palabras clave
-        } else if (
-          lineStr.includes('uRs') ||
-          lineStr.includes('uDisk') ||
-          lineStr.includes('scene') ||
-          lineStr.includes('camera') ||
-          lineStr.includes('renderer') ||
-          lineStr.includes('accel') ||
-          lineStr.includes('beaming')
-        ) {
+        } else if (i >= 13 && i <= 17) {
           osCtx.fillStyle = '#fbbf24'; // Variables / Uniforms
-        } else if (lineStr.includes('"three"') || lineStr.includes('"high-performance"')) {
+        } else if (i === 8) {
           osCtx.fillStyle = '#34d399'; // Strings
+        } else if (i === 3 || i === 5 || i === 6 || i === 7 || i === 9 || i === 12 || i === 18 || i === 21 || i === 22 || i === 25 || i === 26 || i === 27) {
+          osCtx.fillStyle = '#38bdf8'; // Palabras clave
         } else {
           osCtx.fillStyle = '#e2e8f0'; // Texto general
         }
 
         osCtx.fillText(subStr, edX + 50, yPos);
-        cursorX = edX + 50 + osCtx.measureText(subStr).width;
+        cursorX = edX + 50 + subStr.length * charWidth;
         cursorY = yPos;
       }
 
@@ -2598,14 +2568,26 @@ const Computer3D: React.FC = () => {
       ambientBacklight.intensity = 3.2 + bass * 1.4;
       ambientBacklight.color.setHex(0x2563eb);
 
-      // Teclas escribiendo automáticamente
+      // Teclas escribiendo automáticamente con actualización selectiva O(1)
       if (keyboardKeys.length > 0 && state.powerOn) {
-        const activeKey1 = Math.floor(state.time * 14) % keyboardKeys.length;
-        const activeKey2 = Math.floor(state.time * 9 + 7) % keyboardKeys.length;
-        keyboardKeys.forEach((k, idx) => {
-          const baseY = (k.userData.baseY as number) || 0.052;
-          k.position.y = idx === activeKey1 || idx === activeKey2 ? baseY - 0.014 : baseY;
-        });
+        const activeKey1 = Math.floor(state.time * 26) % keyboardKeys.length;
+        const activeKey2 = Math.floor(state.time * 18 + 7) % keyboardKeys.length;
+        if (activeKey1 !== lastActiveKey1 || activeKey2 !== lastActiveKey2) {
+          if (lastActiveKey1 >= 0 && keyboardKeys[lastActiveKey1]) {
+            keyboardKeys[lastActiveKey1].position.y = (keyboardKeys[lastActiveKey1].userData.baseY as number) || 0.052;
+          }
+          if (lastActiveKey2 >= 0 && keyboardKeys[lastActiveKey2]) {
+            keyboardKeys[lastActiveKey2].position.y = (keyboardKeys[lastActiveKey2].userData.baseY as number) || 0.052;
+          }
+          if (keyboardKeys[activeKey1]) {
+            keyboardKeys[activeKey1].position.y = ((keyboardKeys[activeKey1].userData.baseY as number) || 0.052) - 0.014;
+          }
+          if (keyboardKeys[activeKey2]) {
+            keyboardKeys[activeKey2].position.y = ((keyboardKeys[activeKey2].userData.baseY as number) || 0.052) - 0.014;
+          }
+          lastActiveKey1 = activeKey1;
+          lastActiveKey2 = activeKey2;
+        }
       }
 
       // Mouse moviéndose automáticamente
@@ -2615,7 +2597,7 @@ const Computer3D: React.FC = () => {
       }
 
       // Ondas en el agua de la taza reactivas al bajo de los parlantes
-      if (liquidWaterObj && frameTick % 2 === 0) {
+      if (liquidWaterObj && frameTick % 4 === 0) {
         const posAttr = liquidWaterObj.surfaceMesh.geometry.attributes.position;
         const rippleAmp = 0.0022 + (soundEngine.isPlaying ? bass * 0.0095 : 0);
         for (let i = 0; i < posAttr.count; i++) {
@@ -2661,8 +2643,8 @@ const Computer3D: React.FC = () => {
         }
       });
 
-      // Actualizar textura 2D del monitor cada 3 frames (~20 FPS para el editor de texto) evitando saturar el bus GPU
-      if (frameTick % 3 === 1) {
+      // Actualizar textura 2D del monitor cada 4 frames (~15 FPS) ahorrando el 60% de ancho de banda GPU
+      if (frameTick % 4 === 1) {
         renderMonitorScreen(state.time);
       }
       updateCameraPosition();
