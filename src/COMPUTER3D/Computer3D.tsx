@@ -66,7 +66,7 @@ const Computer3D: React.FC = () => {
     const state = {
       powerOn: true,
       screenMode: 0, // 0: Gargantua Geodesic 3D Raymarching, 1: Matrix Crimson, 2: Cyberpunk Synth, 3: Analíticas
-      modeNames: ['Gargantua 3D', 'Matrix Crimson', 'Synthwave 3D', 'Sistema OS'],
+      modeNames: ['Robot 3D Pro', 'Matrix Crimson', 'Synthwave 3D', 'Sistema OS'],
       rgbMode: 0, // 0: Rojo Carmesí (JM)
       autoRotate: true,
       time: 0,
@@ -94,397 +94,1104 @@ const Computer3D: React.FC = () => {
     let screenTexture: THREE.CanvasTexture;
 
     // ---------------------------------------------------------------------------
-    // Renderizador Offscreen de Gargantua (Geodesic Raymarching 3D Ultra-Optimizado)
+    // Renderizador Offscreen del Robot 3D Pro (Compañero IA en pantalla completa)
     // ---------------------------------------------------------------------------
-    const bhCanvas = document.createElement('canvas');
-    bhCanvas.width = 240;
-    bhCanvas.height = 190;
-    let bhRenderer: THREE.WebGLRenderer | null = null;
-    let bhScene: THREE.Scene | null = null;
-    let bhCamera: THREE.OrthographicCamera | null = null;
-    let bhUniforms: Record<string, { value: unknown }> | null = null;
-    let bhMaterial: THREE.ShaderMaterial | null = null;
-    let bhMesh: THREE.Mesh | null = null;
-    const bhTravelVelocity = new THREE.Vector3(0.55, 0.12, -0.82).normalize().multiplyScalar(6.0);
-    let bhLastTime = 0;
+    const robotCanvas = document.createElement('canvas');
+    robotCanvas.width = 960;
+    robotCanvas.height = 540;
+    let robotRenderer: THREE.WebGLRenderer | null = null;
+    let robotScene: THREE.Scene | null = null;
+    let robotCamera: THREE.PerspectiveCamera | null = null;
+
+    let robotGroup: THREE.Group;
+    let robotHeadGroup: THREE.Group;
+    let robotBodyGroup: THREE.Group;
+    let robotLeftArmPivot: THREE.Group;
+    let robotRightArmPivot: THREE.Group;
+    let robotFaceRoot: THREE.Group;
+    let robotDefaultFaceGroup: THREE.Group;
+    let robotLoveFaceGroup: THREE.Group;
+    let robotStarFaceGroup: THREE.Group;
+    let robotSurprisedFaceGroup: THREE.Group;
+    let robotEqFaceGroup: THREE.Group;
+    let robotSleepFaceGroup: THREE.Group;
+
+    let robotLeftEyeArch: THREE.Group;
+    let robotRightEyeArch: THREE.Group;
+    let robotRightEyeWinkChevron: THREE.Group;
+    let robotHappyMouthMesh: THREE.Group;
+    let robotBlushLeft: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+    let robotBlushRight: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+    const robotEqBars: THREE.Mesh[] = [];
+    let robotShadowDisc: THREE.Mesh;
+
     let lastActiveKey1 = -1;
     let lastActiveKey2 = -1;
 
-    const bhVertexShader = /* glsl */ `
-      void main() {
-        gl_Position = vec4(position.xy, 0.0, 1.0);
-      }
-    `;
+    const robotDisposables: { dispose: () => void }[] = [];
 
-    const bhFragmentShader = /* glsl */ `
-      precision highp float;
+    const robotState = {
+      action: 'happy',
+      actionTimer: 0,
+      actionIndex: 0,
+      blinkTimer: 0,
+      isBlinking: false,
+      squishVelocity: 0,
+      squishAmount: 0,
+      headPatTilt: 0,
+      lookX: 0,
+      lookY: 0,
+      toastEmoji: '✨',
+      toastText: '¡Hola humano!',
+      actionsList: [
+        { id: 'happy', label: 'Original', icon: '😊', toast: '✨ ¡Hola humano!' },
+        { id: 'wave', label: 'Saludar', icon: '👋', toast: '👋 ¡Hola, bienvenido!' },
+        { id: 'love', label: 'Amor', icon: '😍', toast: '🥰 ¡Diseño con amor!' },
+        { id: 'dance', label: 'Fiesta DJ', icon: '🎵', toast: '🎵 ¡Ritmo en el código!' },
+        { id: 'star', label: 'Genial', icon: '🤩', toast: '🤩 ¡Frontend Pro!' },
+        { id: 'wink', label: 'Guiño', icon: '😉', toast: '😉 ¡Pixel-perfect!' },
+        { id: 'surprised', label: 'Sorpresa', icon: '😮', toast: '😮 ¡Wow, qué fluido!' },
+        { id: 'spin', label: 'Turbo Giro', icon: '🚀', toast: '🚀 ¡A toda velocidad!' },
+      ]
+    };
 
-      #define PI 3.14159265359
-      #define MAX_STEPS 44
+    function setRobotAction(actionId: string) {
+      robotState.action = actionId;
+      robotState.actionTimer = 0;
+      robotState.squishVelocity = 0.22;
 
-      uniform vec2  iResolution;
-      uniform float iTime;
-      uniform vec3  camPos;
-      uniform vec3  camRight;
-      uniform vec3  camUp;
-      uniform vec3  camForward;
-      uniform float camFov;
-      uniform float uRs;
-      uniform float uDiskInner;
-      uniform float uDiskOuter;
-      uniform float uDiskRotSpeed;
-      uniform float uDiskSpin;
-      uniform float uExposure;
-      uniform float uAxisTilt;
-      uniform float uCameraRoll;
-      uniform vec3  uTravel;
-
-      float hash13(vec3 p3) {
-        p3 = fract(p3 * 0.1031);
-        p3 += dot(p3, p3.zyx + 31.32);
-        return fract((p3.x + p3.y) * p3.z);
-      }
-
-      float noise3(vec3 p) {
-        vec3 i = floor(p);
-        vec3 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-
-        float n000 = hash13(i + vec3(0.0, 0.0, 0.0));
-        float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
-        float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
-        float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
-        float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
-        float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
-        float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
-        float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
-
-        float x00 = mix(n000, n100, f.x);
-        float x10 = mix(n010, n110, f.x);
-        float x01 = mix(n001, n101, f.x);
-        float x11 = mix(n011, n111, f.x);
-
-        float y0 = mix(x00, x10, f.y);
-        float y1 = mix(x01, x11, f.y);
-
-        return mix(y0, y1, f.z);
+      const actItem = robotState.actionsList.find(a => a.id === actionId);
+      if (actItem) {
+        robotState.toastEmoji = actItem.icon;
+        robotState.toastText = actItem.toast;
       }
 
-      float fbm(vec3 p) {
-        float v = 0.0;
-        float a = 0.5;
-        for (int i = 0; i < 2; i++) {
-          v += a * noise3(p);
-          p = p * 2.02 + vec3(11.7, 3.1, 7.9);
-          a *= 0.5;
-        }
-        return v;
+      if (robotDefaultFaceGroup) {
+        robotDefaultFaceGroup.visible = ['happy', 'wave', 'wink', 'spin'].includes(actionId);
+      }
+      if (robotRightEyeArch) {
+        robotRightEyeArch.visible = actionId !== 'wink';
+      }
+      if (robotRightEyeWinkChevron) {
+        robotRightEyeWinkChevron.visible = actionId === 'wink';
       }
 
-      float fbmFlow(vec3 p, float lac) {
-        float v = 0.0;
-        float a = 0.55;
-        for (int i = 0; i < 2; i++) {
-          v += a * noise3(p);
-          p = p * lac + vec3(5.3, 9.1, 2.7);
-          a *= 0.5;
-        }
-        return v;
+      if (robotLoveFaceGroup) robotLoveFaceGroup.visible = actionId === 'love';
+      if (robotStarFaceGroup) robotStarFaceGroup.visible = actionId === 'star';
+      if (robotSurprisedFaceGroup) robotSurprisedFaceGroup.visible = actionId === 'surprised';
+      if (robotEqFaceGroup) robotEqFaceGroup.visible = actionId === 'dance';
+      if (robotSleepFaceGroup) robotSleepFaceGroup.visible = actionId === 'sleep';
+
+      if (actionId === 'love' && robotBlushLeft && robotBlushRight) {
+        robotBlushLeft.material.opacity = 0.75;
+        robotBlushRight.material.opacity = 0.75;
       }
+    }
 
-      vec3 starfield(vec3 dir, vec3 travel) {
-        vec3 col = vec3(0.0);
-        float scale = 65.0;
-        vec3 p = dir * scale + travel * 0.45;
-        vec3 cell = floor(p);
-        vec3 f = fract(p);
-
-        float h = hash13(cell + 17.0);
-        if (h > 0.95) {
-          vec3 c = vec3(
-            0.2 + 0.6 * hash13(cell + 1.7),
-            0.2 + 0.6 * hash13(cell + 5.3),
-            0.2 + 0.6 * hash13(cell + 9.1)
-          );
-          float d = length(f - c);
-          float s = smoothstep(0.12, 0.0, d);
-          float temp = hash13(cell + 3.3);
-          vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.84, 1.0), temp);
-          col += tint * s * (0.5 + 1.5 * hash13(cell + 21.0));
-        }
-        return col;
-      }
-
-      vec3 bigStars(vec3 dir, vec3 travel) {
-        vec3 p = dir * 18.0 + travel * 0.12;
-        vec3 cell = floor(p);
-        vec3 f = fract(p);
-
-        float h = hash13(cell + 41.0);
-        if (h < 0.93) return vec3(0.0);
-
-        vec3 c = vec3(
-          0.25 + 0.5 * hash13(cell + 2.2),
-          0.25 + 0.5 * hash13(cell + 6.6),
-          0.25 + 0.5 * hash13(cell + 10.4)
-        );
-        float d = length(f - c);
-        float core = smoothstep(0.07, 0.0, d);
-        float glow = exp(-d * 18.0) * 0.35;
-        float temp = hash13(cell + 8.8);
-        vec3 tint = mix(vec3(1.0, 0.85, 0.65), vec3(0.75, 0.85, 1.0), temp);
-        return tint * (core * 2.4 + glow) * (0.6 + 0.8 * hash13(cell + 30.0));
-      }
-
-      vec3 nebulaClouds(vec3 dir, vec3 travel) {
-        float n1 = fbm(dir * 2.2 + travel * 0.02 + vec3(3.0, 1.0, 7.0));
-        float n2 = fbm(dir * 4.5 + travel * 0.04 + vec3(9.0, 4.0, 2.0));
-        float m = smoothstep(0.42, 0.85, n1 * 0.65 + n2 * 0.35);
-        vec3 colA = vec3(0.10, 0.06, 0.18);
-        vec3 colB = vec3(0.04, 0.10, 0.20);
-        return mix(colA, colB, n2) * m * 0.55;
-      }
-
-      vec3 diskRamp(float t) {
-        vec3 yellow     = vec3(1.00, 0.86, 0.20) * 2.7;
-        vec3 gold       = vec3(1.00, 0.66, 0.05) * 2.5;
-        vec3 orange     = vec3(1.00, 0.40, 0.01) * 2.2;
-        vec3 deepCopper = vec3(0.95, 0.20, 0.00) * 1.5;
-        vec3 darkEdge   = vec3(0.40, 0.07, 0.00) * 0.6;
-
-        vec3 c = mix(yellow, gold, smoothstep(0.00, 0.32, t));
-        c = mix(c, orange, smoothstep(0.14, 0.58, t));
-        c = mix(c, deepCopper, smoothstep(0.40, 0.82, t));
-        c = mix(c, darkEdge, smoothstep(0.65, 1.00, t));
-        c = mix(c, vec3(0.0), smoothstep(0.92, 1.20, t));
-        return c;
-      }
-
-      float boundaryParticles(float r, float phi, float innerR, float outerR, float time) {
-        float omega = 1.15 / pow(max(r, innerR * 0.7) / innerR, 1.9);
-        float rotAngle = phi - omega * (7.0 + time * 1.4) * uDiskRotSpeed * uDiskSpin;
-
-        float radialScale = 18.0;
-        float angularBins = floor(r * 28.0);
-
-        float rCell = floor(r * radialScale);
-        float rFract = fract(r * radialScale);
-
-        float aCoord = (rotAngle / (2.0 * PI) + 0.5) * angularBins;
-        float aCell = floor(aCoord);
-        float aFract = fract(aCoord);
-
-        vec3 seed = vec3(rCell, mod(aCell, max(angularBins, 1.0)), 19.3);
-        float prob = hash13(seed);
-
-        float pAccum = 0.0;
-        if (prob > 0.74) {
-          vec2 center = vec2(0.25 + 0.5 * hash13(seed + 4.1), 0.25 + 0.5 * hash13(seed + 8.7));
-          vec2 d = vec2((rFract - center.x) * 1.4, (aFract - center.y) * 0.8);
-          float dist = length(d);
-          float size = 0.15 + 0.2 * hash13(seed + 13.5);
-          float spark = smoothstep(size, 0.0, dist);
-          float twinkle = 0.7 + 0.3 * sin(time * (5.0 + prob * 6.0) + prob * 40.0);
-          pAccum += spark * twinkle * (0.8 + 0.9 * prob);
-        }
-
-        float t = clamp((r - innerR) / (outerR - innerR), 0.0, 1.3);
-        float outerLimitBoost = exp(-pow((t - 0.78) / 0.28, 2.0)) * 1.8;
-        float midStream       = 0.45 * smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.85, 1.25, t));
-
-        return pAccum * (outerLimitBoost + midStream);
-      }
-
-      vec4 evaluateDiskAndClouds(vec3 p, vec3 rayDir, float innerR, float outerR, float time) {
-        float r = length(p.xz);
-        float phi = atan(p.z, p.x);
-
-        float t = max((r - innerR) / (outerR - innerR), 0.0);
-
-        float omega = 1.15 / pow(max(r, innerR * 0.75) / innerR, 1.9);
-        float windTime = 6.0 + time * 1.2;
-        float swirl = phi - omega * windTime * uDiskRotSpeed * uDiskSpin;
-
-        vec2 flowXY = vec2(cos(swirl), sin(swirl)) * r;
-        vec3 flowP = vec3(flowXY.x * 0.22, flowXY.y * 0.22, r * 0.05 - time * 0.06);
-
-        float nFilaments = clamp(fbmFlow(flowP, 2.8), 0.0, 1.0);
-        float grooveWave1 = sin(r * 3.8 + nFilaments * 2.0) * 0.5 + 0.5;
-        float concentricRings = mix(0.7, 1.2, grooveWave1);
-
-        float lanes = noise3(vec3(flowXY.x * 0.5, flowXY.y * 0.5, time * 0.08));
-        float dustLane = smoothstep(0.18, 0.78, lanes);
-
-        vec3 baseColor = diskRamp(t + (nFilaments - 0.5) * 0.12);
-
-        float edgeNoise = noise3(vec3(cos(phi) * 2.2, sin(phi) * 2.2, time * 0.03));
-        float outerEdge = 0.9 + edgeNoise * 0.35;
-        float innerCloudEdge = smoothstep(-0.08, 0.04, t);
-        float radialMask = innerCloudEdge * (1.0 - smoothstep(0.55, outerEdge, t));
-
-        float spiral = 0.72 + 0.28 * sin(3.0 * swirl + r * 0.55);
-        float density = radialMask * (0.6 + 0.5 * nFilaments) * concentricRings * mix(0.6, 1.1, dustLane) * spiral;
-
-        vec3 tangent = normalize(vec3(-p.z, 0.0, p.x)) * uDiskSpin;
-        float vOrb = clamp(sqrt(uRs / (2.0 * max(r, uRs))), 0.0, 0.95);
-        float mu = dot(tangent, -rayDir);
-        float dopplerFactor = 1.0 / max(0.16, (1.0 - vOrb * mu));
-        float beaming = pow(dopplerFactor, 1.8);
-
-        vec3 col = baseColor * density * beaming;
-
-        float particles = boundaryParticles(r, phi, innerR, outerR, time);
-        vec3 particleCol = diskRamp(clamp(t * 0.85, 0.02, 0.78)) * beaming * 2.1;
-        col += particleCol * particles;
-
-        col.b *= clamp(dopplerFactor, 0.55, 1.7);
-        col.r *= clamp(2.0 - dopplerFactor, 0.5, 1.4);
-
-        col = col / (1.0 + 0.6 * col);
-
-        float alpha = clamp(max(max(col.r, col.g), col.b) * 0.82 + particles * 0.4, 0.0, 0.98);
-        return vec4(max(col, 0.0), alpha);
-      }
-
-      vec3 acesFilm(vec3 x) {
-        const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
-        return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-      }
-
-      vec3 rotateX(vec3 v, float a) {
-        float c = cos(a), s = sin(a);
-        return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c);
-      }
-
-      vec3 traceRay(vec3 ro, vec3 rd) {
-        vec3 pos = rotateX(ro, -uAxisTilt);
-        vec3 dir = rotateX(rd, -uAxisTilt);
-        vec3 h = cross(pos, dir);
-        float h2 = dot(h, h);
-
-        float escapeR = uRs * 190.0;
-        bool hitHorizon = false;
-        float lensR = uDiskOuter * 0.5;
-
-        float photonR = uRs * 2.1;
-        float ringWidth = uRs * 0.08;
-        float minR = escapeR;
-
-        vec3 accumColor = vec3(0.0);
-        float accumAlpha = 0.0;
-
-        for (int i = 0; i < MAX_STEPS; i++) {
-          float r = length(pos);
-          minR = min(minR, r);
-          if (r < uRs * 1.02) { hitHorizon = true; break; }
-          if (r > escapeR || accumAlpha > 0.995) { break; }
-
-          float dt = clamp(r * 0.14, 0.04, 1.8);
-
-          float r_lens = r / lensR;
-          float rl2 = r_lens * r_lens;
-          float rl4 = rl2 * rl2;
-          float rl8 = rl4 * rl4;
-          float atten = 1.0 / (1.0 + rl8);
-
-          float r2 = r * r;
-          float r4 = r2 * r2;
-          float r5 = r4 * r;
-          vec3 accel = -1.5 * uRs * h2 * pos / (r5 + 0.0001) * atten;
-
-          vec3 newDir = normalize(dir + accel * dt);
-          vec3 newPos = pos + newDir * dt;
-
-          if (sign(pos.y) != sign(newPos.y)) {
-            float tc = pos.y / (pos.y - newPos.y);
-            vec3 hitP = mix(pos, newPos, tc);
-            float rHit = length(hitP.xz);
-            if (rHit > uDiskInner * 0.8 && rHit < uDiskOuter * 1.3) {
-              vec4 diskSample = evaluateDiskAndClouds(hitP, newDir, uDiskInner, uDiskOuter, iTime);
-              accumColor += (1.0 - accumAlpha) * diskSample.rgb;
-              accumAlpha += (1.0 - accumAlpha) * diskSample.a;
-            }
+    function addCleanOutline(mesh: THREE.Mesh, thickness = 0.048, colorHex = 0x171a2e) {
+      const outlineMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uThickness: { value: thickness },
+          uColor: { value: new THREE.Color(colorHex) }
+        },
+        vertexShader: `
+          uniform float uThickness;
+          void main() {
+            vec3 displaced = position + normalize(normal) * uThickness;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
           }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          void main() {
+            gl_FragColor = vec4(uColor, 1.0);
+          }
+        `,
+        side: THREE.BackSide
+      });
+      robotDisposables.push(outlineMat);
 
-          pos = newPos;
-          dir = newDir;
+      const outlineMesh = new THREE.Mesh(mesh.geometry, outlineMat);
+      mesh.add(outlineMesh);
+      return outlineMesh;
+    }
+
+    function createBotSurfaceMaterial(litHex: number, shadowHex: number) {
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uLitColor: { value: new THREE.Color(litHex) },
+          uShadowColor: { value: new THREE.Color(shadowHex) },
+          uLightDir: { value: new THREE.Vector3(-0.68, 0.38, 0.62).normalize() },
+          uSmoothness: { value: 0.045 },
+          uSpecStrength: { value: 0.12 }
+        },
+        vertexShader: `
+          varying vec3 vNormal;
+          varying vec3 vViewDir;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+            vViewDir = normalize(-mvPos.xyz);
+            gl_Position = projectionMatrix * mvPos;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uLitColor;
+          uniform vec3 uShadowColor;
+          uniform vec3 uLightDir;
+          uniform float uSmoothness;
+          uniform float uSpecStrength;
+          varying vec3 vNormal;
+          varying vec3 vViewDir;
+
+          void main() {
+            vec3 n = normalize(vNormal);
+            vec3 v = normalize(vViewDir);
+
+            float ndotl = dot(n, uLightDir);
+            float ramp = smoothstep(-0.12 - uSmoothness, -0.04 + uSmoothness, ndotl);
+            vec3 col = mix(uShadowColor, uLitColor, ramp);
+
+            vec3 halfVec = normalize(uLightDir + v);
+            float spec = pow(max(dot(n, halfVec), 0.0), 32.0) * uSpecStrength;
+            col += vec3(spec);
+
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `
+      });
+      robotDisposables.push(mat);
+      return mat;
+    }
+
+    function evalRoundedCapsuleBoxSDF(
+      x: number,
+      y: number,
+      z: number,
+      params: {
+        width: number;
+        height: number;
+        depth: number;
+        cornerRadiusXY: number;
+        edgeRadiusZ: number;
+        topArch?: number;
+        pillowZ?: number;
+      }
+    ) {
+      const halfW = params.width * 0.5;
+      const halfH = params.height * 0.5;
+      const halfD = params.depth * 0.5;
+      const rxy = params.cornerRadiusXY;
+      const rz = params.edgeRadiusZ;
+
+      const nx = Math.min(1.0, Math.abs(x) / halfW);
+      const archOffset = (params.topArch || 0) * Math.cos(nx * Math.PI * 0.5);
+      const localY = y - archOffset * (y > 0 ? y / halfH : 0.25 * (y / halfH));
+
+      const ny = Math.min(1.0, Math.abs(localY) / halfH);
+      const pillow = (params.pillowZ || 0) * Math.cos(nx * Math.PI * 0.5) * Math.cos(ny * Math.PI * 0.5);
+      const effectiveHalfD = halfD + pillow;
+
+      const qx = Math.abs(x) - (halfW - rxy);
+      const qy = Math.abs(localY) - (halfH - rxy);
+      const dist2D = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - (rxy - rz);
+
+      const qz = Math.abs(z) - (effectiveHalfD - rz);
+      const dist3D = Math.hypot(Math.max(dist2D, 0), Math.max(qz, 0)) + Math.min(Math.max(dist2D, qz), 0) - rz;
+
+      return dist3D;
+    }
+
+    function createSmoothSDFMeshGeometry(
+      params: {
+        width: number;
+        height: number;
+        depth: number;
+        cornerRadiusXY: number;
+        edgeRadiusZ: number;
+        topArch?: number;
+        pillowZ?: number;
+      },
+      subdivisions = 24
+    ) {
+      const geo = new THREE.BoxGeometry(1, 1, 1, subdivisions, subdivisions, subdivisions);
+      const pos = geo.attributes.position;
+      const normals = new Float32Array(pos.count * 3);
+
+      const maxBound = Math.max(params.width, params.height, params.depth) * 1.2;
+      const eps = 0.002;
+
+      for (let i = 0; i < pos.count; i++) {
+        let dx = pos.getX(i);
+        let dy = pos.getY(i);
+        let dz = pos.getZ(i);
+        const len = Math.hypot(dx, dy, dz) || 1;
+        dx /= len;
+        dy /= len;
+        dz /= len;
+
+        let lo = 0.0;
+        let hi = maxBound;
+        for (let iter = 0; iter < 16; iter++) {
+          const mid = (lo + hi) * 0.5;
+          const d = evalRoundedCapsuleBoxSDF(dx * mid, dy * mid, dz * mid, params);
+          if (d < 0) lo = mid;
+          else hi = mid;
+        }
+        const r = (lo + hi) * 0.5;
+        const px = dx * r;
+        const py = dy * r;
+        const pz = dz * r;
+
+        pos.setXYZ(i, px, py, pz);
+
+        const gx =
+          evalRoundedCapsuleBoxSDF(px + eps, py, pz, params) -
+          evalRoundedCapsuleBoxSDF(px - eps, py, pz, params);
+        const gy =
+          evalRoundedCapsuleBoxSDF(px, py + eps, pz, params) -
+          evalRoundedCapsuleBoxSDF(px, py - eps, pz, params);
+        const gz =
+          evalRoundedCapsuleBoxSDF(px, py, pz + eps, params) -
+          evalRoundedCapsuleBoxSDF(px, py - eps, pz, params);
+        const glen = Math.hypot(gx, gy, gz) || 1;
+
+        normals[i * 3] = gx / glen;
+        normals[i * 3 + 1] = gy / glen;
+        normals[i * 3 + 2] = gz / glen;
+      }
+
+      geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+      robotDisposables.push(geo);
+      return geo;
+    }
+
+    function getHeadFrontZ(
+      x: number,
+      y: number,
+      headParams: {
+        width: number;
+        height: number;
+        depth: number;
+        cornerRadiusXY: number;
+        edgeRadiusZ: number;
+        topArch?: number;
+        pillowZ?: number;
+      }
+    ) {
+      let lo = 0.0;
+      let hi = headParams.depth;
+      for (let iter = 0; iter < 16; iter++) {
+        const mid = (lo + hi) * 0.5;
+        if (evalRoundedCapsuleBoxSDF(x, y, mid, headParams) < 0) lo = mid;
+        else hi = mid;
+      }
+      return (lo + hi) * 0.5;
+    }
+
+    function createCurvedSurfacePatchGeometry(
+      width: number,
+      height: number,
+      cornerRadius: number,
+      headParams: {
+        width: number;
+        height: number;
+        depth: number;
+        cornerRadiusXY: number;
+        edgeRadiusZ: number;
+        topArch?: number;
+        pillowZ?: number;
+      },
+      zOffset = 0.01
+    ) {
+      const radialSegs = 48;
+      const ringSegs = 10;
+      const halfW = width * 0.5;
+      const halfH = height * 0.5;
+      const r = Math.min(cornerRadius, halfW, halfH);
+
+      function getBoundaryPoint(theta: number) {
+        const ct = Math.cos(theta);
+        const st = Math.sin(theta);
+        let lo = 0;
+        let hi = Math.hypot(halfW, halfH);
+        for (let i = 0; i < 14; i++) {
+          const mid = (lo + hi) * 0.5;
+          const x = ct * mid;
+          const y = st * mid;
+          const qx = Math.abs(x) - (halfW - r);
+          const qy = Math.abs(y) - (halfH - r);
+          const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+          if (d < 0) lo = mid;
+          else hi = mid;
+        }
+        const dist = (lo + hi) * 0.5;
+        return { x: ct * dist, y: st * dist };
+      }
+
+      const positions: number[] = [];
+      const uvs: number[] = [];
+      const indices: number[] = [];
+
+      for (let j = 0; j <= ringSegs; j++) {
+        const rho = j / ringSegs;
+        for (let i = 0; i <= radialSegs; i++) {
+          const theta = (i / radialSegs) * Math.PI * 2;
+          const bPt = getBoundaryPoint(theta);
+          const x = bPt.x * rho;
+          const y = bPt.y * rho;
+          const z = getHeadFrontZ(x, y, headParams) + zOffset;
+
+          positions.push(x, y, z);
+          uvs.push(x / width + 0.5, y / height + 0.5);
+        }
+      }
+
+      for (let j = 0; j < ringSegs; j++) {
+        for (let i = 0; i < radialSegs; i++) {
+          const a = j * (radialSegs + 1) + i;
+          const b = a + radialSegs + 1;
+          const c = b + 1;
+          const d = a + 1;
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      robotDisposables.push(geo);
+      return geo;
+    }
+
+    function createCurvedCapsuleArmGeometry(isLeft: boolean) {
+      const dir = isLeft ? -1 : 1;
+      const spineCurve = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(dir * 0.18, -0.38, 0.02),
+        new THREE.Vector3(dir * 0.25, -0.78, 0.0)
+      );
+
+      const rTop = 0.205;
+      const rBottom = 0.225;
+      const radialSegs = 24;
+      const capSegs = 8;
+      const bodySegs = 16;
+      const totalRings = capSegs + bodySegs + capSegs;
+
+      const positions: number[] = [];
+      const normals: number[] = [];
+      const indices: number[] = [];
+
+      const frames = spineCurve.computeFrenetFrames(bodySegs, false);
+
+      for (let ring = 0; ring <= totalRings; ring++) {
+        const center = new THREE.Vector3();
+        const tangent = new THREE.Vector3();
+        const normalVec = new THREE.Vector3();
+        const binormalVec = new THREE.Vector3();
+        let ringRadius = 0;
+        let axialOffset = 0;
+        let sinLat = 0;
+        let cosLat = 1;
+
+        if (ring < capSegs) {
+          const frac = ring / capSegs;
+          const angle = (1 - frac) * (Math.PI * 0.5);
+          sinLat = Math.sin(angle);
+          cosLat = Math.cos(angle);
+
+          center.copy(spineCurve.getPointAt(0));
+          tangent.copy(frames.tangents[0]);
+          normalVec.copy(frames.normals[0]);
+          binormalVec.copy(frames.binormals[0]);
+
+          ringRadius = rTop * cosLat;
+          axialOffset = -rTop * sinLat;
+        } else if (ring <= capSegs + bodySegs) {
+          const idx = ring - capSegs;
+          const t = idx / bodySegs;
+          center.copy(spineCurve.getPointAt(t));
+          tangent.copy(frames.tangents[idx]);
+          normalVec.copy(frames.normals[idx]);
+          binormalVec.copy(frames.binormals[idx]);
+
+          ringRadius = rTop + (rBottom - rTop) * t;
+          axialOffset = 0;
+          sinLat = 0;
+          cosLat = 1;
+        } else {
+          const frac = (ring - (capSegs + bodySegs)) / capSegs;
+          const angle = frac * (Math.PI * 0.5);
+          sinLat = Math.sin(angle);
+          cosLat = Math.cos(angle);
+
+          center.copy(spineCurve.getPointAt(1));
+          tangent.copy(frames.tangents[bodySegs]);
+          normalVec.copy(frames.normals[bodySegs]);
+          binormalVec.copy(frames.binormals[bodySegs]);
+
+          ringRadius = rBottom * cosLat;
+          axialOffset = rBottom * sinLat;
         }
 
-        vec3 bg = hitHorizon ? vec3(0.0) : (starfield(dir, uTravel) + bigStars(dir, uTravel) + nebulaClouds(dir, uTravel));
+        for (let j = 0; j <= radialSegs; j++) {
+          const theta = (j / radialSegs) * Math.PI * 2;
+          const ct = Math.cos(theta);
+          const st = Math.sin(theta);
 
-        float ringGlow = exp(-pow((minR - photonR) / ringWidth, 2.0));
-        vec3 ring = diskRamp(0.05) * ringGlow * 1.8;
+          const radialDir = new THREE.Vector3()
+            .addScaledVector(normalVec, ct)
+            .addScaledVector(binormalVec, st);
 
-        return accumColor + (1.0 - accumAlpha) * (bg + ring);
+          const posVec = new THREE.Vector3()
+            .copy(center)
+            .addScaledVector(tangent, axialOffset)
+            .addScaledVector(radialDir, ringRadius);
+
+          const normVec = new THREE.Vector3()
+            .addScaledVector(radialDir, cosLat)
+            .addScaledVector(tangent, ring < capSegs ? -sinLat : ring > capSegs + bodySegs ? sinLat : 0)
+            .normalize();
+
+          positions.push(posVec.x, posVec.y, posVec.z * 0.9);
+          normals.push(normVec.x, normVec.y, normVec.z);
+        }
       }
 
-      void main() {
-        vec2 uv = (gl_FragCoord.xy / iResolution.xy - 0.5) * 2.0;
-        uv.x *= iResolution.x / iResolution.y;
-
-        float tanFov = tan(camFov * 0.5);
-        vec3 rayDir = normalize(camForward + uv.x * tanFov * camRight + uv.y * tanFov * camUp);
-
-        vec3 col = traceRay(camPos, rayDir);
-
-        col = acesFilm(col * uExposure);
-
-        float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
-        col = clamp(mix(vec3(luma), col, 1.3), 0.0, 1.0);
-
-        col = pow(col, vec3(1.0 / 2.2));
-
-        gl_FragColor = vec4(col, 1.0);
+      for (let r = 0; r < totalRings; r++) {
+        for (let j = 0; j < radialSegs; j++) {
+          const a = r * (radialSegs + 1) + j;
+          const b = a + radialSegs + 1;
+          const c = b + 1;
+          const d = a + 1;
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
       }
-    `;
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setIndex(indices);
+      robotDisposables.push(geo);
+      return geo;
+    }
+
+    function getTorsoSurfacePoint(phi: number, theta: number, extraRadius = 0) {
+      const yCenter = -0.58;
+      const halfH = 0.78;
+      const y = yCenter + halfH * Math.cos(phi);
+
+      const baseR = 0.92 + 0.08 * Math.cos(phi) - 0.03 * Math.cos(2 * phi);
+      const sinPhi = Math.sin(phi);
+
+      const rx = baseR * sinPhi + extraRadius;
+      const rz = baseR * 0.82 * sinPhi + extraRadius;
+
+      const x = rx * Math.sin(theta);
+      const z = rz * Math.cos(theta);
+      return new THREE.Vector3(x, y, z);
+    }
+
+    function createCompactEggTorsoGeometry() {
+      const latSegs = 32;
+      const lonSegs = 40;
+      const positions: number[] = [];
+      const normals: number[] = [];
+      const indices: number[] = [];
+
+      for (let i = 0; i <= latSegs; i++) {
+        const phi = (i / latSegs) * Math.PI;
+        for (let j = 0; j <= lonSegs; j++) {
+          const theta = (j / lonSegs) * Math.PI * 2;
+          const p = getTorsoSurfacePoint(phi, theta, 0);
+          positions.push(p.x, p.y, p.z);
+
+          const eps = 0.005;
+          const phi1 = Math.max(0.002, Math.min(Math.PI - 0.002, phi));
+          const dPhi = getTorsoSurfacePoint(phi1 + eps, theta, 0).sub(getTorsoSurfacePoint(phi1 - eps, theta, 0));
+          const dTheta = getTorsoSurfacePoint(phi1, theta + eps, 0).sub(getTorsoSurfacePoint(phi1 - eps, theta, 0));
+          const n = new THREE.Vector3().crossVectors(dPhi, dTheta).normalize();
+          if (i === 0) n.set(0, 1, 0);
+          if (i === latSegs) n.set(0, -1, 0);
+          normals.push(n.x, n.y, n.z);
+        }
+      }
+
+      for (let i = 0; i < latSegs; i++) {
+        for (let j = 0; j < lonSegs; j++) {
+          const a = i * (lonSegs + 1) + j;
+          const b = a + lonSegs + 1;
+          const c = b + 1;
+          const d = a + 1;
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setIndex(indices);
+      robotDisposables.push(geo);
+      return geo;
+    }
+
+    function createVisorTexture() {
+      const vCanvas = document.createElement('canvas');
+      vCanvas.width = 512;
+      vCanvas.height = 256;
+      const vCtx = vCanvas.getContext('2d');
+      if (vCtx) {
+        vCtx.fillStyle = '#173749';
+        vCtx.fillRect(0, 0, 512, 256);
+        vCtx.fillStyle = '#0e2533';
+        vCtx.beginPath();
+        vCtx.moveTo(375, 0);
+        vCtx.bezierCurveTo(428, 98, 378, 212, 220, 256);
+        vCtx.lineTo(512, 256);
+        vCtx.lineTo(512, 0);
+        vCtx.closePath();
+        vCtx.fill();
+      }
+      const tex = new THREE.CanvasTexture(vCanvas);
+      tex.needsUpdate = true;
+      robotDisposables.push(tex);
+      return tex;
+    }
+
+    function buildRobot() {
+      if (!robotScene) return;
+
+      robotGroup = new THREE.Group();
+      robotGroup.position.set(0, -0.22, 0);
+      robotScene.add(robotGroup);
+
+      const headAndBodyWhiteMat = createBotSurfaceMaterial(0xedf3fa, 0xcad6e6);
+      const neckAndTopAntennaMat = createBotSurfaceMaterial(0xd2ddec, 0xb1c0d5);
+      const sideEarGrayMat = createBotSurfaceMaterial(0xb7c6da, 0x95a6c0);
+
+      const darkOutlineNavyMat = new THREE.MeshBasicMaterial({ color: 0x171a2e });
+      const cyanBrightMat = new THREE.MeshBasicMaterial({ color: 0x66f9ff });
+      const cyanUpperRimMat = new THREE.MeshBasicMaterial({ color: 0x22d8ec });
+      const pinkLoveMat = new THREE.MeshBasicMaterial({ color: 0xff6b9d });
+      const pureWhiteHighlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const cyanBeltMat = new THREE.MeshBasicMaterial({ color: 0x1ce1f0 });
+
+      robotDisposables.push(
+        darkOutlineNavyMat,
+        cyanBrightMat,
+        cyanUpperRimMat,
+        pinkLoveMat,
+        pureWhiteHighlightMat,
+        cyanBeltMat
+      );
+
+      // 1. CABEZA
+      robotHeadGroup = new THREE.Group();
+      robotHeadGroup.position.set(0, 1.15, 0);
+      robotGroup.add(robotHeadGroup);
+
+      const headParams = {
+        width: 2.64,
+        height: 1.74,
+        depth: 1.48,
+        cornerRadiusXY: 0.64,
+        edgeRadiusZ: 0.56,
+        topArch: 0.06,
+        pillowZ: 0.09
+      };
+
+      const headGeo = createSmoothSDFMeshGeometry(headParams, 26);
+      const headMesh = new THREE.Mesh(headGeo, headAndBodyWhiteMat);
+      robotHeadGroup.add(headMesh);
+      addCleanOutline(headMesh, 0.052);
+
+      const antennaParams = {
+        width: 0.96,
+        height: 0.36,
+        depth: 0.68,
+        cornerRadiusXY: 0.17,
+        edgeRadiusZ: 0.17,
+        topArch: 0.04,
+        pillowZ: 0.03
+      };
+      const antennaGeo = createSmoothSDFMeshGeometry(antennaParams, 16);
+      const antennaMesh = new THREE.Mesh(antennaGeo, neckAndTopAntennaMat);
+      antennaMesh.position.set(0, 0.89, 0);
+      robotHeadGroup.add(antennaMesh);
+      addCleanOutline(antennaMesh, 0.048);
+
+      const earParams = {
+        width: 0.42,
+        height: 0.72,
+        depth: 0.64,
+        cornerRadiusXY: 0.20,
+        edgeRadiusZ: 0.20,
+        topArch: 0.0,
+        pillowZ: 0.02
+      };
+      const earGeo = createSmoothSDFMeshGeometry(earParams, 16);
+
+      const leftEar = new THREE.Mesh(earGeo, sideEarGrayMat);
+      leftEar.position.set(-1.35, -0.02, 0);
+      robotHeadGroup.add(leftEar);
+      addCleanOutline(leftEar, 0.048);
+
+      const rightEar = new THREE.Mesh(earGeo, sideEarGrayMat);
+      rightEar.position.set(1.35, -0.02, 0);
+      robotHeadGroup.add(rightEar);
+      addCleanOutline(rightEar, 0.048);
+
+      // Brillos en la cabeza
+      const headHighlightGroup = new THREE.Group();
+      const headHighlightPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 16; i++) {
+        const t = i / 16;
+        const hx = -0.94 + t * 0.48;
+        const hy = 0.64 + Math.sin(t * Math.PI * 0.65) * 0.11;
+        const hz = getHeadFrontZ(hx, hy, headParams) + 0.012;
+        headHighlightPts.push(new THREE.Vector3(hx, hy, hz));
+      }
+      const headPillCurve = new THREE.CatmullRomCurve3(headHighlightPts);
+      const headPillGeo = new THREE.TubeGeometry(headPillCurve, 16, 0.042, 10, false);
+      const headPillMesh = new THREE.Mesh(headPillGeo, pureWhiteHighlightMat);
+      const hCap1 = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 10), pureWhiteHighlightMat);
+      hCap1.position.copy(headHighlightPts[0]);
+      const hCap2 = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 10), pureWhiteHighlightMat);
+      hCap2.position.copy(headHighlightPts[headHighlightPts.length - 1]);
+      headPillMesh.add(hCap1, hCap2);
+      headHighlightGroup.add(headPillMesh);
+
+      const headDotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 12), pureWhiteHighlightMat);
+      headDotMesh.scale.set(1, 1, 0.45);
+      headDotMesh.position.set(-1.05, 0.50, getHeadFrontZ(-1.05, 0.50, headParams) + 0.012);
+      headHighlightGroup.add(headDotMesh);
+      robotHeadGroup.add(headHighlightGroup);
+
+      // 2. VISOR
+      const visorBorderGeo = createCurvedSurfacePatchGeometry(2.14, 1.30, 0.50, headParams, 0.007);
+      const visorBorderMesh = new THREE.Mesh(visorBorderGeo, darkOutlineNavyMat);
+      robotHeadGroup.add(visorBorderMesh);
+
+      const visorScreenGeo = createCurvedSurfacePatchGeometry(2.04, 1.20, 0.46, headParams, 0.013);
+      const visorScreenMesh = new THREE.Mesh(
+        visorScreenGeo,
+        new THREE.MeshBasicMaterial({ map: createVisorTexture() })
+      );
+      robotHeadGroup.add(visorScreenMesh);
+
+      // 3. EXPRESIONES FACIALES
+      const visorCenterZ = getHeadFrontZ(0, 0, headParams) + 0.025;
+      robotFaceRoot = new THREE.Group();
+      robotFaceRoot.position.set(0, 0, visorCenterZ);
+      robotHeadGroup.add(robotFaceRoot);
+
+      robotDefaultFaceGroup = new THREE.Group();
+      robotFaceRoot.add(robotDefaultFaceGroup);
+
+      function createOriginalTwoToneEye() {
+        const eyeContainer = new THREE.Group();
+        const w = 0.46;
+        const h = 0.26;
+        const cornerR = 0.075;
+
+        const eyeShape = new THREE.Shape();
+        eyeShape.moveTo(-w * 0.5 + cornerR, -h * 0.36);
+        eyeShape.lineTo(w * 0.5 - cornerR, -h * 0.36);
+        eyeShape.quadraticCurveTo(w * 0.5, -h * 0.36, w * 0.5, -h * 0.36 + cornerR);
+        eyeShape.absarc(0, -h * 0.36 + cornerR * 0.25, w * 0.5, 0, Math.PI, false);
+        eyeShape.lineTo(-w * 0.5, -h * 0.36 + cornerR);
+        eyeShape.quadraticCurveTo(-w * 0.5, -h * 0.36, -w * 0.5 + cornerR, -h * 0.36);
+
+        const eyeGeo = new THREE.ExtrudeGeometry(eyeShape, {
+          depth: 0.014,
+          bevelEnabled: true,
+          bevelSegments: 4,
+          steps: 1,
+          bevelSize: 0.01,
+          bevelThickness: 0.01
+        });
+        eyeGeo.center();
+        robotDisposables.push(eyeGeo);
+
+        const upperRim = new THREE.Mesh(eyeGeo, cyanUpperRimMat);
+        upperRim.position.set(0, 0.014, 0);
+        eyeContainer.add(upperRim);
+
+        const lowerFill = new THREE.Mesh(eyeGeo, cyanBrightMat);
+        lowerFill.scale.set(0.95, 0.82, 1);
+        lowerFill.position.set(0, -0.018, 0.006);
+        eyeContainer.add(lowerFill);
+
+        return eyeContainer;
+      }
+
+      robotLeftEyeArch = createOriginalTwoToneEye();
+      robotLeftEyeArch.position.set(-0.47, 0.05, -0.022);
+      robotLeftEyeArch.rotation.y = -0.14;
+      robotDefaultFaceGroup.add(robotLeftEyeArch);
+
+      robotRightEyeArch = createOriginalTwoToneEye();
+      robotRightEyeArch.position.set(0.47, 0.05, -0.022);
+      robotRightEyeArch.rotation.y = 0.14;
+      robotDefaultFaceGroup.add(robotRightEyeArch);
+
+      robotRightEyeWinkChevron = new THREE.Group();
+      const winkBarGeo = new THREE.BoxGeometry(0.32, 0.075, 0.02);
+      const winkTop = new THREE.Mesh(winkBarGeo, cyanBrightMat);
+      winkTop.position.set(0, 0.05, 0);
+      winkTop.rotation.z = 0.40;
+      const winkBot = new THREE.Mesh(winkBarGeo, cyanBrightMat);
+      winkBot.position.set(0, -0.05, 0);
+      winkBot.rotation.z = -0.40;
+      robotRightEyeWinkChevron.add(winkTop, winkBot);
+      robotRightEyeWinkChevron.position.set(0.47, 0.05, -0.02);
+      robotRightEyeWinkChevron.rotation.y = 0.14;
+      robotRightEyeWinkChevron.visible = false;
+      robotDefaultFaceGroup.add(robotRightEyeWinkChevron);
+
+      robotHappyMouthMesh = new THREE.Group();
+      const mw = 0.27;
+      const mouthShape = new THREE.Shape();
+      mouthShape.moveTo(-mw * 0.5, 0.03);
+      mouthShape.lineTo(mw * 0.5, 0.03);
+      mouthShape.absarc(0, 0.03, mw * 0.5, 0, Math.PI, true);
+      mouthShape.closePath();
+
+      const mouthGeo = new THREE.ExtrudeGeometry(mouthShape, {
+        depth: 0.014,
+        bevelEnabled: true,
+        bevelSegments: 4,
+        steps: 1,
+        bevelSize: 0.008,
+        bevelThickness: 0.008
+      });
+      mouthGeo.center();
+      robotDisposables.push(mouthGeo);
+
+      const mouthTopRim = new THREE.Mesh(mouthGeo, cyanUpperRimMat);
+      mouthTopRim.position.set(0, 0.01, 0);
+      const mouthBottomFill = new THREE.Mesh(mouthGeo, cyanBrightMat);
+      mouthBottomFill.scale.set(0.94, 0.80, 1);
+      mouthBottomFill.position.set(0, -0.012, 0.006);
+      robotHappyMouthMesh.add(mouthTopRim, mouthBottomFill);
+      robotHappyMouthMesh.position.set(0, -0.23, 0.0);
+      robotDefaultFaceGroup.add(robotHappyMouthMesh);
+
+      const blushGeo = new THREE.CircleGeometry(0.11, 20);
+      blushGeo.scale(1.35, 0.75, 1);
+      const blushMat = new THREE.MeshBasicMaterial({ color: 0xff7eb3, transparent: true, opacity: 0.0 });
+      robotDisposables.push(blushGeo, blushMat);
+      robotBlushLeft = new THREE.Mesh(blushGeo, blushMat);
+      robotBlushLeft.position.set(-0.68, -0.16, -0.035);
+      robotBlushLeft.rotation.y = -0.2;
+      robotBlushRight = new THREE.Mesh(blushGeo, blushMat);
+      robotBlushRight.position.set(0.68, -0.16, -0.035);
+      robotBlushRight.rotation.y = 0.2;
+      robotFaceRoot.add(robotBlushLeft, robotBlushRight);
+
+      // Amor (Corazones)
+      robotLoveFaceGroup = new THREE.Group();
+      robotLoveFaceGroup.visible = false;
+      robotFaceRoot.add(robotLoveFaceGroup);
+
+      function createHeartMesh() {
+        const hs = new THREE.Shape();
+        hs.moveTo(0, -0.14);
+        hs.bezierCurveTo(0.20, -0.02, 0.25, 0.16, 0.12, 0.21);
+        hs.bezierCurveTo(0.04, 0.24, 0, 0.16, 0, 0.12);
+        hs.bezierCurveTo(0, 0.16, -0.04, 0.24, -0.12, 0.21);
+        hs.bezierCurveTo(-0.25, 0.16, -0.20, -0.02, 0, -0.14);
+        const hGeo = new THREE.ExtrudeGeometry(hs, { depth: 0.02, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01 });
+        hGeo.center();
+        robotDisposables.push(hGeo);
+        return new THREE.Mesh(hGeo, pinkLoveMat);
+      }
+      const leftHeart = createHeartMesh();
+      leftHeart.position.set(-0.47, 0.05, -0.02);
+      leftHeart.rotation.y = -0.14;
+      const rightHeart = createHeartMesh();
+      rightHeart.position.set(0.47, 0.05, -0.02);
+      rightHeart.rotation.y = 0.14;
+      robotLoveFaceGroup.add(leftHeart, rightHeart, robotHappyMouthMesh.clone());
+
+      // Genial (Estrellas)
+      robotStarFaceGroup = new THREE.Group();
+      robotStarFaceGroup.visible = false;
+      robotFaceRoot.add(robotStarFaceGroup);
+
+      function createStarMesh() {
+        const ss = new THREE.Shape();
+        const outer = 0.21, inner = 0.08, spikes = 4;
+        for (let i = 0; i < spikes * 2; i++) {
+          const r = i % 2 === 0 ? outer : inner;
+          const angle = (i / (spikes * 2)) * Math.PI * 2;
+          const sx = Math.cos(angle) * r;
+          const sy = Math.sin(angle) * r;
+          if (i === 0) ss.moveTo(sx, sy);
+          else ss.lineTo(sx, sy);
+        }
+        ss.closePath();
+        const sGeo = new THREE.ExtrudeGeometry(ss, { depth: 0.02, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01 });
+        sGeo.center();
+        robotDisposables.push(sGeo);
+        return new THREE.Mesh(sGeo, cyanBrightMat);
+      }
+      const leftStar = createStarMesh();
+      leftStar.position.set(-0.47, 0.05, -0.02);
+      leftStar.rotation.y = -0.14;
+      const rightStar = createStarMesh();
+      rightStar.position.set(0.47, 0.05, -0.02);
+      rightStar.rotation.y = 0.14;
+      const starMouth = robotHappyMouthMesh.clone();
+      starMouth.scale.set(1.2, 1.2, 1);
+      robotStarFaceGroup.add(leftStar, rightStar, starMouth);
+
+      // Sorpresa
+      robotSurprisedFaceGroup = new THREE.Group();
+      robotSurprisedFaceGroup.visible = false;
+      robotFaceRoot.add(robotSurprisedFaceGroup);
+
+      const ringEyeGeo = new THREE.TorusGeometry(0.16, 0.048, 12, 24);
+      const surpLeft = new THREE.Mesh(ringEyeGeo, cyanBrightMat);
+      surpLeft.position.set(-0.47, 0.05, -0.02);
+      surpLeft.rotation.y = -0.14;
+      const surpRight = new THREE.Mesh(ringEyeGeo, cyanBrightMat);
+      surpRight.position.set(0.47, 0.05, -0.02);
+      surpRight.rotation.y = 0.14;
+      const surpMouthGeo = new THREE.TorusGeometry(0.075, 0.032, 12, 20);
+      const surpMouth = new THREE.Mesh(surpMouthGeo, cyanUpperRimMat);
+      surpMouth.position.set(0, -0.23, 0);
+      robotSurprisedFaceGroup.add(surpLeft, surpRight, surpMouth);
+
+      // DJ Equalizer
+      robotEqFaceGroup = new THREE.Group();
+      robotEqFaceGroup.visible = false;
+      robotFaceRoot.add(robotEqFaceGroup);
+
+      const numBars = 9;
+      for (let i = 0; i < numBars; i++) {
+        const barGeo = new THREE.BoxGeometry(0.105, 0.38, 0.02);
+        const mat = i % 2 === 0 ? cyanBrightMat : cyanUpperRimMat;
+        const bar = new THREE.Mesh(barGeo, mat);
+        const bx = (i - (numBars - 1) / 2) * 0.17;
+        bar.position.set(bx, -0.02, -Math.abs(bx) * 0.04);
+        robotEqFaceGroup.add(bar);
+        robotEqBars.push(bar);
+      }
+
+      // Dormir
+      robotSleepFaceGroup = new THREE.Group();
+      robotSleepFaceGroup.visible = false;
+      robotFaceRoot.add(robotSleepFaceGroup);
+
+      const sleepEyeGeo = new THREE.TorusGeometry(0.17, 0.038, 12, 24, Math.PI);
+      sleepEyeGeo.rotateZ(Math.PI);
+      const sleepL = new THREE.Mesh(sleepEyeGeo, cyanUpperRimMat);
+      sleepL.position.set(-0.47, 0.09, -0.02);
+      sleepL.rotation.y = -0.14;
+      const sleepR = new THREE.Mesh(sleepEyeGeo, cyanUpperRimMat);
+      sleepR.position.set(0.47, 0.09, -0.02);
+      sleepR.rotation.y = 0.14;
+      const sleepMouth = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), cyanBrightMat);
+      sleepMouth.position.set(0, -0.23, 0);
+      robotSleepFaceGroup.add(sleepL, sleepR, sleepMouth);
+
+      // 4. TORSO Y CUELLO
+      robotBodyGroup = new THREE.Group();
+      robotGroup.add(robotBodyGroup);
+
+      const neckGeo = new THREE.CylinderGeometry(0.39, 0.41, 0.34, 28);
+      const neckMesh = new THREE.Mesh(neckGeo, neckAndTopAntennaMat);
+      neckMesh.position.set(0, 0.19, 0);
+      robotBodyGroup.add(neckMesh);
+      addCleanOutline(neckMesh, 0.048);
+
+      const collarPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        const cx = Math.sin(a) * 0.415;
+        const cz = Math.cos(a) * 0.36;
+        const cy = 0.08 - Math.cos(a) * 0.045;
+        collarPts.push(new THREE.Vector3(cx, cy, cz));
+      }
+      const collarMesh = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(collarPts, true), 36, 0.030, 8, true),
+        darkOutlineNavyMat
+      );
+      robotBodyGroup.add(collarMesh);
+
+      const torsoGeo = createCompactEggTorsoGeometry();
+      const torsoMesh = new THREE.Mesh(torsoGeo, headAndBodyWhiteMat);
+      robotBodyGroup.add(torsoMesh);
+      addCleanOutline(torsoMesh, 0.052);
+
+      const chestHighlightGroup = new THREE.Group();
+      const chestArcPts = [
+        getTorsoSurfacePoint(0.70, -0.68, 0.016),
+        getTorsoSurfacePoint(0.84, -0.80, 0.016),
+        getTorsoSurfacePoint(1.00, -0.88, 0.016),
+        getTorsoSurfacePoint(1.16, -0.92, 0.016)
+      ];
+      const chestArcCurve = new THREE.CatmullRomCurve3(chestArcPts);
+      const chestArcMesh = new THREE.Mesh(
+        new THREE.TubeGeometry(chestArcCurve, 16, 0.040, 10, false),
+        pureWhiteHighlightMat
+      );
+      const cCap1 = new THREE.Mesh(new THREE.SphereGeometry(0.040, 10, 10), pureWhiteHighlightMat);
+      cCap1.position.copy(chestArcPts[0]);
+      const cCap2 = new THREE.Mesh(new THREE.SphereGeometry(0.040, 10, 10), pureWhiteHighlightMat);
+      cCap2.position.copy(chestArcPts[3]);
+      chestArcMesh.add(cCap1, cCap2);
+      chestHighlightGroup.add(chestArcMesh);
+
+      const chestDotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.040, 12, 12), pureWhiteHighlightMat);
+      chestDotMesh.scale.set(1, 1, 0.5);
+      chestDotMesh.position.copy(getTorsoSurfacePoint(1.34, -0.93, 0.018));
+      chestHighlightGroup.add(chestDotMesh);
+      robotBodyGroup.add(chestHighlightGroup);
+
+      // Cinturón cian escalonado
+      const cyanBeltGroup = new THREE.Group();
+      const phiSide = 1.82;
+      const phiStepTop = 1.90;
+      const phiStepBottom = 2.04;
+      const stepTheta = 0.39;
+      const beltOffset = 0.012;
+      const beltRadius = 0.022;
+
+      const leftSidePts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 14; i++) {
+        const t = i / 14;
+        const th = -1.42 + t * (-stepTheta - -1.42);
+        const ph = phiSide + t * (phiStepTop - phiSide);
+        leftSidePts.push(getTorsoSurfacePoint(ph, th, beltOffset));
+      }
+      cyanBeltGroup.add(
+        new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(leftSidePts), 16, beltRadius, 8, false), cyanBeltMat)
+      );
+
+      const leftStepPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 6; i++) {
+        const t = i / 6;
+        const ph = phiStepTop + t * (phiStepBottom - phiStepTop);
+        leftStepPts.push(getTorsoSurfacePoint(ph, -stepTheta, beltOffset));
+      }
+      cyanBeltGroup.add(
+        new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(leftStepPts), 6, beltRadius, 8, false), cyanBeltMat)
+      );
+
+      const centerPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 16; i++) {
+        const t = i / 16;
+        const th = -stepTheta + t * (stepTheta * 2);
+        const ph = phiStepBottom + Math.cos((th / stepTheta) * (Math.PI * 0.5)) * 0.025;
+        centerPts.push(getTorsoSurfacePoint(ph, th, beltOffset));
+      }
+      cyanBeltGroup.add(
+        new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(centerPts), 18, beltRadius, 8, false), cyanBeltMat)
+      );
+
+      const rightStepPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 6; i++) {
+        const t = i / 6;
+        const ph = phiStepBottom + t * (phiStepTop - phiStepBottom);
+        rightStepPts.push(getTorsoSurfacePoint(ph, stepTheta, beltOffset));
+      }
+      cyanBeltGroup.add(
+        new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rightStepPts), 6, beltRadius, 8, false), cyanBeltMat)
+      );
+
+      const rightSidePts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 14; i++) {
+        const t = i / 14;
+        const th = stepTheta + t * (1.42 - stepTheta);
+        const ph = phiStepTop + t * (phiSide - phiStepTop);
+        rightSidePts.push(getTorsoSurfacePoint(ph, th, beltOffset));
+      }
+      cyanBeltGroup.add(
+        new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rightSidePts), 16, beltRadius, 8, false), cyanBeltMat)
+      );
+
+      [
+        getTorsoSurfacePoint(phiStepTop, -stepTheta, beltOffset),
+        getTorsoSurfacePoint(phiStepBottom, -stepTheta, beltOffset),
+        getTorsoSurfacePoint(phiStepBottom, stepTheta, beltOffset),
+        getTorsoSurfacePoint(phiStepTop, stepTheta, beltOffset)
+      ].forEach(pt => {
+        const cornerSphere = new THREE.Mesh(new THREE.SphereGeometry(beltRadius, 8, 8), cyanBeltMat);
+        cornerSphere.position.copy(pt);
+        cyanBeltGroup.add(cornerSphere);
+      });
+
+      robotBodyGroup.add(cyanBeltGroup);
+
+      // 5. BRAZOS
+      function buildArmPivot(isLeft: boolean) {
+        const dir = isLeft ? -1 : 1;
+        const pivot = new THREE.Group();
+        pivot.position.set(dir * 0.86, -0.18, -0.02);
+
+        const armGeo = createCurvedCapsuleArmGeometry(isLeft);
+        const armMesh = new THREE.Mesh(armGeo, headAndBodyWhiteMat);
+        pivot.add(armMesh);
+        addCleanOutline(armMesh, 0.048);
+
+        return pivot;
+      }
+
+      robotLeftArmPivot = buildArmPivot(true);
+      robotRightArmPivot = buildArmPivot(false);
+      robotBodyGroup.add(robotLeftArmPivot, robotRightArmPivot);
+
+      // 6. SOMBRA
+      const shadowGeo = new THREE.CircleGeometry(0.68, 36);
+      shadowGeo.rotateX(-Math.PI * 0.5);
+      shadowGeo.scale(1.25, 1, 0.42);
+      const shadowMat = new THREE.MeshBasicMaterial({
+        color: 0x050b18,
+        transparent: true,
+        opacity: 0.85
+      });
+      robotDisposables.push(shadowGeo, shadowMat);
+      robotShadowDisc = new THREE.Mesh(shadowGeo, shadowMat);
+      robotShadowDisc.position.set(0, -1.96, 0);
+      robotScene.add(robotShadowDisc);
+
+      // 7. CÁMARA E ILUMINACIÓN
+      robotCamera = new THREE.PerspectiveCamera(32, robotCanvas.width / robotCanvas.height, 0.1, 100);
+      robotCamera.position.set(0, 0.15, 7.2);
+      robotCamera.lookAt(0, 0.06, 0);
+
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.95);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+      dirLight.position.set(-5, 7, 6);
+      const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+      rimLight.position.set(5, -3, -4);
+      robotScene.add(ambLight, dirLight, rimLight);
+    }
 
     try {
-      bhRenderer = new THREE.WebGLRenderer({
-        canvas: bhCanvas,
-        antialias: false,
+      robotRenderer = new THREE.WebGLRenderer({
+        canvas: robotCanvas,
+        antialias: true,
+        alpha: true,
         preserveDrawingBuffer: true,
         powerPreference: 'high-performance'
       });
-      bhRenderer.setPixelRatio(1);
-      bhRenderer.setSize(bhCanvas.width, bhCanvas.height, false);
-
-      bhScene = new THREE.Scene();
-      bhCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-      bhUniforms = {
-        iResolution:   { value: new THREE.Vector2(bhCanvas.width, bhCanvas.height) },
-        iTime:         { value: 0 },
-        camPos:        { value: new THREE.Vector3() },
-        camRight:      { value: new THREE.Vector3() },
-        camUp:         { value: new THREE.Vector3() },
-        camForward:    { value: new THREE.Vector3() },
-        camFov:        { value: THREE.MathUtils.degToRad(42.0) },
-        uRs:           { value: 1.0 },
-        uDiskInner:    { value: 2.2 },
-        uDiskOuter:    { value: 19.5 },
-        uDiskRotSpeed: { value: 2.6 },
-        uDiskSpin:     { value: 1.0 },
-        uExposure:     { value: 1.5 },
-        uAxisTilt:     { value: 0.0 },
-        uCameraRoll:   { value: 0.0 },
-        uTravel:       { value: new THREE.Vector3() }
-      };
-
-      bhMaterial = new THREE.ShaderMaterial({
-        uniforms: bhUniforms,
-        vertexShader: bhVertexShader,
-        fragmentShader: bhFragmentShader,
-        depthWrite: false,
-        depthTest: false
-      });
-
-      bhMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bhMaterial);
-      bhScene.add(bhMesh);
+      robotRenderer.setPixelRatio(1);
+      robotRenderer.setSize(robotCanvas.width, robotCanvas.height, false);
+      robotScene = new THREE.Scene();
+      buildRobot();
     } catch (err) {
-      console.warn('Gargantua offscreen renderer setup fallback:', err);
+      console.warn('Robot 3D offscreen renderer setup fallback:', err);
     }
-
-    // Datos para el efecto Matrix en pantalla
+// Datos para el efecto Matrix en pantalla
     const matrixCols = 52;
     const matrixDrops = Array(matrixCols).fill(1);
 
@@ -1738,516 +2445,291 @@ const Computer3D: React.FC = () => {
       });
     }
 
-    function drawLiveWebCodingMode(w: number, h: number, time: number) {
-      osCtx.fillStyle = '#03050a';
+    function drawRobot3DScreen(w: number, h: number, time: number) {
+      if (!robotRenderer || !robotScene || !robotCamera) return;
+
+      // 1. Fondo oscuro con degradado radial de alta gama solicitado
+      const bgGrad = osCtx.createRadialGradient(w * 0.5, h * 0.44, 20, w * 0.5, h * 0.44, w * 0.72);
+      bgGrad.addColorStop(0, '#1e293b');
+      bgGrad.addColorStop(0.55, '#0f172a');
+      bgGrad.addColorStop(1, '#020617');
+      osCtx.fillStyle = bgGrad;
       osCtx.fillRect(0, 0, w, h);
 
-      const codeSnippet = [
-        '<!DOCTYPE html>',
-        '<!-- Gargantua — Geodesic Raymarching 3D -->',
-        '<script type="module">',
-        '  import * as THREE from "three";',
-        '',
-        '  const scene = new THREE.Scene();',
-        '  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);',
-        '  const renderer = new THREE.WebGLRenderer({',
-        '    antialias: false, powerPreference: "high-performance"',
-        '  });',
-        '',
-        '  // Uniforms: Métrica de Schwarzschild',
-        '  const uniforms = {',
-        '    uRs:           { value: 1.0 },   // Radio Schwarzschild',
-        '    uDiskInner:    { value: 2.2 },   // ISCO estable',
-        '    uDiskOuter:    { value: 19.5 },  // Disco de acreción',
-        '    uDiskRotSpeed: { value: 2.6 },   // Rotación relativista',
-        '    uExposure:     { value: 1.5 },   // Exposición ACES',
-        '  };',
-        '',
-        '  // Curvatura Espacio-Tiempo: Geodésicas Nulas',
-        '  vec3 accel = -1.5 * uRs * h2 * pos / pow(r, 5.0) * atten;',
-        '  vec3 newDir = normalize(dir + accel * dt);',
-        '',
-        '  // Efecto Doppler & Beaming Relativista',
-        '  float beaming = pow(dopplerFactor, 1.8);',
-        '  col = acesFilm(col * uExposure);',
-        '  renderer.render(scene, camera);',
-        '</script>',
-      ];
-
-      const fullTextLength = codeSnippet.reduce((acc, line) => acc + line.length, 0);
-      // Ciclo ágil en cámara rápida: escribe en ~4.2 segundos y muestra la simulación completa
-      const cycleDuration = 7.5;
-      const cycleTime = time % cycleDuration;
-      const typingTime = 4.2;
-      const typingProgress = Math.min(1, cycleTime / typingTime);
-      let charsRemaining = Math.floor(typingProgress * fullTextLength);
-
-      // -----------------------------------------------------------------------
-      // Panel Izquierdo: Editor Visual Studio Code con el código de Gargantua
-      // -----------------------------------------------------------------------
-      const edX = 20;
-      const edY = 18;
-      const edW = 575;
-      const edH = h - 78;
-
-      osCtx.fillStyle = '#050811';
-      osCtx.beginPath();
-      osCtx.roundRect(edX, edY, edW, edH, 12);
-      osCtx.fill();
-      osCtx.strokeStyle = 'rgba(37, 99, 235, 0.65)';
-      osCtx.lineWidth = 2;
-      osCtx.stroke();
-
-      // Barra superior de VS Code con botones macOS
-      osCtx.fillStyle = '#091228';
-      osCtx.beginPath();
-      osCtx.roundRect(edX, edY, edW, 38, [12, 12, 0, 0]);
-      osCtx.fill();
-
-      ['#ff5f56', '#ffbd2e', '#27c93f'].forEach((c, idx) => {
-        osCtx.fillStyle = c;
-        osCtx.beginPath();
-        osCtx.arc(edX + 24 + idx * 20, edY + 19, 5.5, 0, Math.PI * 2);
-        osCtx.fill();
-      });
-
-      // Pestaña activa
-      osCtx.fillStyle = '#050811';
-      osCtx.beginPath();
-      osCtx.roundRect(edX + 90, edY + 5, 200, 33, [6, 6, 0, 0]);
-      osCtx.fill();
-
-      // Icono HTML naranja
-      osCtx.fillStyle = '#f97316';
-      osCtx.font = 'bold 12px Inter, sans-serif';
-      osCtx.fillText('</>', edX + 102, edY + 25);
-
-      osCtx.fillStyle = '#93c5fd';
-      osCtx.font = '600 12px monospace';
-      osCtx.fillText('gargantua.html', edX + 130, edY + 25);
-
-      osCtx.fillStyle = '#64748b';
-      osCtx.font = '11px Inter, sans-serif';
-      osCtx.fillText('Visual Studio Code', edX + edW - 140, edY + 25);
-
-      // Líneas de código
-      osCtx.font = '12px "JetBrains Mono", Consolas, monospace';
-      let cursorX = edX + 54;
-      let cursorY = edY + 62;
-      const lineHeight = 19;
-      const charWidth = 7.2;
-
-      for (let i = 0; i < codeSnippet.length; i++) {
-        const lineStr = codeSnippet[i];
-        const yPos = edY + 62 + i * lineHeight;
-
-        osCtx.fillStyle = '#475569';
-        osCtx.fillText(String(i + 1).padStart(2, '0'), edX + 16, yPos);
-
-        if (charsRemaining <= 0 && lineStr.length > 0) break;
-
-        const visibleChars = Math.min(lineStr.length, charsRemaining);
-        const subStr = lineStr.substring(0, visibleChars);
-        charsRemaining -= visibleChars;
-
-        // Resaltado de sintaxis optimizado O(1)
-        if (i === 1 || i === 11 || i === 20 || i === 24) {
-          osCtx.fillStyle = '#64748b'; // Comentario
-        } else if (i === 0 || i === 2 || i === 28) {
-          osCtx.fillStyle = '#f43f5e'; // Etiquetas HTML
-        } else if (i >= 13 && i <= 17) {
-          osCtx.fillStyle = '#fbbf24'; // Variables / Uniforms
-        } else if (i === 8) {
-          osCtx.fillStyle = '#34d399'; // Strings
-        } else if (i === 3 || i === 5 || i === 6 || i === 7 || i === 9 || i === 12 || i === 18 || i === 21 || i === 22 || i === 25 || i === 26 || i === 27) {
-          osCtx.fillStyle = '#38bdf8'; // Palabras clave
-        } else {
-          osCtx.fillStyle = '#e2e8f0'; // Texto general
-        }
-
-        osCtx.fillText(subStr, edX + 50, yPos);
-        cursorX = edX + 50 + subStr.length * charWidth;
-        cursorY = yPos;
-      }
-
-      // Cursor parpadeante rápido
-      if (Math.floor(time * 5) % 2 === 0) {
-        osCtx.fillStyle = '#38bdf8';
-        osCtx.fillRect(cursorX + 2, cursorY - 14, 8, 17);
-      }
-
-      // Terminal inferior de VS Code con estado reactivo de compilación
-      const termH = 62;
-      const termY = edY + edH - termH - 8;
-      osCtx.fillStyle = '#02040a';
-      osCtx.beginPath();
-      osCtx.roundRect(edX + 10, termY, edW - 20, termH, 8);
-      osCtx.fill();
-      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-      osCtx.lineWidth = 1.2;
-      osCtx.stroke();
-
-      osCtx.fillStyle = '#38bdf8';
-      osCtx.font = '11.5px monospace';
-      osCtx.fillText(
-        `➜ WebGL2 Shader: Compilando en cámara rápida (${Math.round(typingProgress * 100)}%)`,
-        edX + 22,
-        termY + 24
-      );
-      osCtx.fillStyle = typingProgress >= 1 ? '#10b981' : '#fbbf24';
-      osCtx.fillText(
-        typingProgress < 0.22
-          ? '⚡ Etapa 1/4: Generando WebGLRenderer & Orthographic Quad...'
-          : typingProgress < 0.48
-          ? '⚡ Etapa 2/4: Calculando Horizonte de Sucesos & Órbita ISCO...'
-          : typingProgress < 0.72
-          ? '⚡ Etapa 3/4: Trazando Geodésicas Nulas & Desviación de Luz...'
-          : '✓ Etapa 4/4: Disco de Acreción & Beaming Doppler Activos [60 FPS]',
-        edX + 22,
-        termY + 46
-      );
-
-      // -----------------------------------------------------------------------
-      // Panel Derecho: Navegador con simulación interactiva 3D de Gargantua
-      // -----------------------------------------------------------------------
-      const brX = 612;
-      const brY = 18;
-      const brW = w - 632;
-      const brH = h - 78;
-
-      osCtx.fillStyle = '#04070e';
-      osCtx.beginPath();
-      osCtx.roundRect(brX, brY, brW, brH, 12);
-      osCtx.fill();
-      osCtx.strokeStyle = '#2563eb';
-      osCtx.lineWidth = 2;
-      osCtx.stroke();
-
-      // Barra superior del navegador
-      osCtx.fillStyle = '#091228';
-      osCtx.beginPath();
-      osCtx.roundRect(brX, brY, brW, 42, [12, 12, 0, 0]);
-      osCtx.fill();
-
-      // Botones de control del navegador
-      ['#ff5f56', '#ffbd2e', '#27c93f'].forEach((c, idx) => {
-        osCtx.fillStyle = c;
-        osCtx.beginPath();
-        osCtx.arc(brX + 20 + idx * 16, brY + 21, 5, 0, Math.PI * 2);
-        osCtx.fill();
-      });
-
-      // Pestaña activa
-      osCtx.fillStyle = '#04070e';
-      osCtx.beginPath();
-      osCtx.roundRect(brX + 78, brY + 6, 210, 30, [6, 6, 0, 0]);
-      osCtx.fill();
-      osCtx.fillStyle = '#f8fafc';
-      osCtx.font = 'bold 11px Inter, sans-serif';
-      osCtx.fillText('🌌 Gargantua — Raymarching 3D', brX + 90, brY + 24);
-
-      // Barra de dirección URL
-      osCtx.fillStyle = '#081024';
-      osCtx.beginPath();
-      osCtx.roundRect(brX + 298, brY + 8, brW - 425, 26, 13);
-      osCtx.fill();
-      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      // Cuadrícula tecnológica sutil
+      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
       osCtx.lineWidth = 1;
+      const gridStep = 48;
+      for (let x = 0; x < w; x += gridStep) {
+        osCtx.beginPath();
+        osCtx.moveTo(x, 0);
+        osCtx.lineTo(x, h);
+        osCtx.stroke();
+      }
+      for (let y = 0; y < h; y += gridStep) {
+        osCtx.beginPath();
+        osCtx.moveTo(0, y);
+        osCtx.lineTo(w, y);
+        osCtx.stroke();
+      }
+
+      // 2. Ciclo automático de expresiones cada 4.8 segundos
+      const cycleLength = 4.8;
+      const currentActionIdx = Math.floor(time / cycleLength) % robotState.actionsList.length;
+      if (currentActionIdx !== robotState.actionIndex) {
+        robotState.actionIndex = currentActionIdx;
+        setRobotAction(robotState.actionsList[currentActionIdx].id);
+      }
+
+      // 3. Físicas elásticas (Squash & Stretch)
+      robotState.squishAmount += robotState.squishVelocity;
+      robotState.squishVelocity -= robotState.squishAmount * 0.28;
+      robotState.squishVelocity *= 0.82;
+      robotState.headPatTilt *= 0.92;
+
+      const scaleY = 1 - robotState.squishAmount * 0.3;
+      const scaleXZ = 1 + robotState.squishAmount * 0.18;
+      robotGroup.scale.set(scaleXZ, scaleY, scaleXZ);
+
+      // 4. Levitación suave y sombra
+      const hoverSpeed = robotState.action === 'sleep' ? 1.2 : 2.2;
+      const hoverAmp = robotState.action === 'sleep' ? 0.05 : 0.09;
+      const hoverOffset = Math.sin(time * hoverSpeed) * hoverAmp;
+      robotGroup.position.y = -0.22 + hoverOffset;
+
+      const shadowScale = 1 - hoverOffset * 0.35;
+      robotShadowDisc.scale.set(1.25 * shadowScale, 1, 0.42 * shadowScale);
+
+      // 5. Parpadeo de ojos
+      robotState.blinkTimer += 0.016;
+      if (robotState.blinkTimer > 3.6) {
+        robotState.isBlinking = true;
+        if (robotState.blinkTimer > 3.78) {
+          robotState.isBlinking = false;
+          robotState.blinkTimer = 0;
+        }
+      }
+
+      // 6. Mirada procedimental fluida (el robot mira alrededor de la habitación)
+      robotState.lookX += (Math.sin(time * 0.7) * 0.22 - robotState.lookX) * 0.06;
+      robotState.lookY += (Math.cos(time * 0.9) * 0.12 - robotState.lookY) * 0.06;
+
+      let targetHeadRotY = robotState.lookX;
+      let targetHeadRotX = robotState.lookY;
+      let targetHeadRotZ = robotState.headPatTilt;
+
+      let targetLeftArmZ = 0;
+      let targetRightArmZ = 0;
+      let targetLeftArmX = 0;
+      let targetRightArmX = 0;
+
+      const eyeBlinkScale = robotState.isBlinking ? 0.08 : 1;
+      let mouthScaleX = 1;
+      let mouthScaleY = 1;
+
+      // Movimientos de animación según la acción activa
+      if (robotState.action === 'wave') {
+        targetRightArmZ = 2.25 + Math.sin(time * 11) * 0.25;
+        targetRightArmX = -0.18;
+        targetHeadRotZ = -0.08;
+        mouthScaleX = 1.15;
+        mouthScaleY = 1.18;
+      } else if (robotState.action === 'love') {
+        const beat = 1 + Math.sin(time * 8) * 0.14;
+        robotLoveFaceGroup.children[0]?.scale.set(beat, beat, 1);
+        robotLoveFaceGroup.children[1]?.scale.set(beat, beat, 1);
+        targetHeadRotZ = Math.sin(time * 3) * 0.08;
+        targetLeftArmZ = -0.22;
+        targetRightArmZ = 0.22;
+      } else if (robotState.action === 'star') {
+        if (robotStarFaceGroup.children[0]) robotStarFaceGroup.children[0].rotation.z = time * 2.2;
+        if (robotStarFaceGroup.children[1]) robotStarFaceGroup.children[1].rotation.z = -time * 2.2;
+        robotGroup.position.y = -0.22 + hoverOffset + Math.abs(Math.sin(time * 6)) * 0.12;
+        targetLeftArmZ = -0.42;
+        targetRightArmZ = 0.42;
+      } else if (robotState.action === 'wink') {
+        targetHeadRotZ = 0.12;
+        mouthScaleX = 1.18;
+      } else if (robotState.action === 'surprised') {
+        const tremble = Math.sin(time * 30) * 0.018;
+        targetHeadRotZ = tremble;
+        targetLeftArmZ = -0.35;
+        targetRightArmZ = 0.35;
+      } else if (robotState.action === 'dance') {
+        robotGroup.position.y = -0.22 + Math.abs(Math.sin(time * 7.5)) * 0.22;
+        robotGroup.rotation.z = Math.sin(time * 3.75) * 0.09;
+        targetHeadRotZ = -Math.sin(time * 3.75) * 0.14;
+        targetHeadRotY = Math.cos(time * 3.75) * 0.2;
+        targetLeftArmZ = -0.55 + Math.sin(time * 7.5) * 0.45;
+        targetRightArmZ = 0.55 + Math.cos(time * 7.5) * 0.45;
+
+        robotEqBars.forEach((bar, i) => {
+          const barH = 0.25 + Math.abs(Math.sin(time * 10 + i * 0.7)) * 1.1;
+          bar.scale.y = barH;
+        });
+      } else if (robotState.action === 'spin') {
+        robotGroup.rotation.y += 0.08;
+        targetLeftArmZ = -0.38;
+        targetRightArmZ = 0.38;
+      }
+
+      if (robotState.action !== 'dance') {
+        robotGroup.rotation.z += (0 - robotGroup.rotation.z) * 0.1;
+      }
+      if (robotState.action !== 'spin') {
+        const curY = robotGroup.rotation.y % (Math.PI * 2);
+        robotGroup.rotation.y = curY + (0 - curY) * 0.1;
+      }
+
+      robotHeadGroup.rotation.y += (targetHeadRotY - robotHeadGroup.rotation.y) * 0.12;
+      robotHeadGroup.rotation.x += (targetHeadRotX - robotHeadGroup.rotation.x) * 0.12;
+      robotHeadGroup.rotation.z += (targetHeadRotZ - robotHeadGroup.rotation.z) * 0.12;
+
+      robotFaceRoot.position.x = targetHeadRotY * 0.055;
+      robotFaceRoot.position.y = targetHeadRotX * 0.035;
+
+      robotLeftEyeArch.scale.y += (eyeBlinkScale - robotLeftEyeArch.scale.y) * 0.28;
+      robotRightEyeArch.scale.y += (eyeBlinkScale - robotRightEyeArch.scale.y) * 0.28;
+      robotHappyMouthMesh.scale.x += (mouthScaleX - robotHappyMouthMesh.scale.x) * 0.2;
+      robotHappyMouthMesh.scale.y += (mouthScaleY - robotHappyMouthMesh.scale.y) * 0.2;
+
+      const idleSwing = Math.sin(time * hoverSpeed) * 0.035;
+      robotLeftArmPivot.rotation.z += (targetLeftArmZ - idleSwing - robotLeftArmPivot.rotation.z) * 0.12;
+      robotRightArmPivot.rotation.z += (targetRightArmZ + idleSwing - robotRightArmPivot.rotation.z) * 0.12;
+      robotLeftArmPivot.rotation.x += (targetLeftArmX - robotLeftArmPivot.rotation.x) * 0.12;
+      robotRightArmPivot.rotation.x += (targetRightArmX - robotRightArmPivot.rotation.x) * 0.12;
+
+      // 7. Renderizar Robot 3D en el offscreen WebGL Canvas
+      robotRenderer.render(robotScene, robotCamera);
+
+      // 8. Pintar el robot centrado en pantalla completa sobre el monitor
+      osCtx.drawImage(robotCanvas, 0, 0, w, h);
+
+      // 9. Barra Superior Estilo Glassmorphism
+      const topBarY = 22;
+      osCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      osCtx.strokeStyle = 'rgba(51, 65, 85, 0.85)';
+      osCtx.lineWidth = 1.2;
+      osCtx.beginPath();
+      osCtx.roundRect(28, topBarY, 275, 48, 14);
+      osCtx.fill();
       osCtx.stroke();
 
-      osCtx.fillStyle = '#38bdf8';
-      osCtx.font = '11px Inter, sans-serif';
-      osCtx.fillText('🔒 localhost:5173/gargantua-blackhole/', brX + 312, brY + 25);
-
-      // Badge Three.js
-      osCtx.fillStyle = 'rgba(37, 99, 235, 0.25)';
-      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+      const pingPulse = Math.sin(time * 4) * 0.5 + 0.5;
+      osCtx.fillStyle = `rgba(34, 211, 238, ${0.25 + pingPulse * 0.4})`;
       osCtx.beginPath();
-      osCtx.roundRect(brX + brW - 118, brY + 8, 106, 26, 13);
+      osCtx.arc(50, topBarY + 24, 9 + pingPulse * 3, 0, Math.PI * 2);
+      osCtx.fill();
+      osCtx.fillStyle = '#06b6d4';
+      osCtx.beginPath();
+      osCtx.arc(50, topBarY + 24, 5.5, 0, Math.PI * 2);
+      osCtx.fill();
+
+      osCtx.fillStyle = '#f8fafc';
+      osCtx.font = 'bold 15px "Plus Jakarta Sans", Inter, sans-serif';
+      osCtx.fillText('Bot Asistente 3D', 72, topBarY + 22);
+
+      osCtx.fillStyle = '#38bdf8';
+      osCtx.font = 'bold 10px monospace';
+      osCtx.fillText('ONLINE // TOCA PARA INTERACTUAR', 72, topBarY + 38);
+
+      // Panel superior derecho con selector de estilos
+      osCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      osCtx.beginPath();
+      osCtx.roundRect(w - 380, topBarY, 352, 48, 14);
+      osCtx.fill();
+      osCtx.stroke();
+
+      osCtx.fillStyle = '#0284c7';
+      osCtx.beginPath();
+      osCtx.roundRect(w - 372, topBarY + 7, 130, 34, 10);
+      osCtx.fill();
+      osCtx.fillStyle = '#ffffff';
+      osCtx.font = 'bold 12px "Plus Jakarta Sans", Inter, sans-serif';
+      osCtx.fillText('🎨 Ilustración 2.5D', w - 362, topBarY + 28);
+
+      osCtx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      osCtx.beginPath();
+      osCtx.roundRect(w - 232, topBarY + 7, 95, 34, 10);
+      osCtx.fill();
+      osCtx.fillStyle = '#94a3b8';
+      osCtx.fillText('✒️ Contorno', w - 222, topBarY + 28);
+
+      osCtx.beginPath();
+      osCtx.roundRect(w - 128, topBarY + 7, 92, 34, 10);
+      osCtx.fill();
+      osCtx.fillText('✨ Vinilo 3D', w - 120, topBarY + 28);
+
+      // 10. Globo Toast de Reacción (en la parte superior central)
+      const toastW = 260;
+      const toastH = 40;
+      const toastX = (w - toastW) / 2;
+      const toastY = 82;
+      osCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+      osCtx.lineWidth = 1.2;
+      osCtx.beginPath();
+      osCtx.roundRect(toastX, toastY, toastW, toastH, 20);
       osCtx.fill();
       osCtx.stroke();
 
       osCtx.fillStyle = '#38bdf8';
-      osCtx.font = 'bold 10px Inter, sans-serif';
-      osCtx.fillText('● THREE.JS 3D', brX + brW - 105, brY + 25);
+      osCtx.font = 'bold 13.5px "Plus Jakarta Sans", Inter, sans-serif';
+      osCtx.textAlign = 'center';
+      osCtx.fillText(`${robotState.toastEmoji}  ${robotState.toastText}`, w / 2, toastY + 25);
+      osCtx.textAlign = 'left';
 
-      // Viewport del navegador donde se renderiza Gargantua en vivo
-      const vpX = brX + 14;
-      const vpY = brY + 48;
-      const vpW = brW - 28;
-      const vpH = brH - 58;
+      // 11. Dock inferior con todas las expresiones y animaciones
+      const dockW = 860;
+      const dockH = 58;
+      const dockX = (w - dockW) / 2;
+      const dockY = h - dockH - 22;
 
-      // -----------------------------------------------------------------------
-      // Renderizado progresivo del visor según lo que se va escribiendo en código
-      // -----------------------------------------------------------------------
-      osCtx.save();
+      osCtx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      osCtx.strokeStyle = 'rgba(51, 65, 85, 0.85)';
+      osCtx.lineWidth = 1.2;
       osCtx.beginPath();
-      osCtx.roundRect(vpX, vpY, vpW, vpH, [0, 0, 10, 10]);
-      osCtx.clip();
+      osCtx.roundRect(dockX, dockY, dockW, dockH, 18);
+      osCtx.fill();
+      osCtx.stroke();
 
-      if (typingProgress < 0.22) {
-        // ETAPA 1: Setup inicial de Three.js y WebGLRenderer
-        // Fondo azul espacial con rejilla holográfica y blueprint
-        osCtx.fillStyle = '#030718';
-        osCtx.fillRect(vpX, vpY, vpW, vpH);
+      const btnW = 98;
+      const btnGap = 8;
+      const startBtnX = dockX + (dockW - (robotState.actionsList.length * btnW + (robotState.actionsList.length - 1) * btnGap)) / 2;
 
-        // Rejilla de coordenadas de calibración
-        osCtx.strokeStyle = 'rgba(37, 99, 235, 0.2)';
-        osCtx.lineWidth = 1;
-        const gridStep = 36;
-        for (let gx = vpX; gx < vpX + vpW; gx += gridStep) {
+      robotState.actionsList.forEach((act, idx) => {
+        const bx = startBtnX + idx * (btnW + btnGap);
+        const by = dockY + 9;
+        const isActive = robotState.action === act.id;
+
+        if (isActive) {
+          const btnGrad = osCtx.createLinearGradient(bx, by, bx + btnW, by + 40);
+          btnGrad.addColorStop(0, '#06b6d4');
+          btnGrad.addColorStop(1, '#0284c7');
+          osCtx.fillStyle = btnGrad;
           osCtx.beginPath();
-          osCtx.moveTo(gx, vpY);
-          osCtx.lineTo(gx, vpY + vpH);
-          osCtx.stroke();
-        }
-        for (let gy = vpY; gy < vpY + vpH; gy += gridStep) {
-          osCtx.beginPath();
-          osCtx.moveTo(vpX, gy);
-          osCtx.lineTo(vpX + vpW, gy);
-          osCtx.stroke();
-        }
-
-        // Retícula central giratoria
-        const midX = vpX + vpW / 2;
-        const midY = vpY + vpH / 2;
-        osCtx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-        osCtx.lineWidth = 1.5;
-        osCtx.beginPath();
-        osCtx.arc(midX, midY, 55 + Math.sin(time * 12) * 6, 0, Math.PI * 2);
-        osCtx.stroke();
-
-        osCtx.strokeStyle = 'rgba(37, 99, 235, 0.8)';
-        osCtx.beginPath();
-        osCtx.arc(midX, midY, 110, 0, Math.PI * 2);
-        osCtx.stroke();
-
-        osCtx.beginPath();
-        osCtx.moveTo(midX - 130, midY);
-        osCtx.lineTo(midX + 130, midY);
-        osCtx.moveTo(midX, midY - 130);
-        osCtx.lineTo(midX, midY + 130);
-        osCtx.stroke();
-
-        // Banner informativo
-        osCtx.fillStyle = 'rgba(5, 10, 24, 0.9)';
-        osCtx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
-        osCtx.beginPath();
-        osCtx.roundRect(midX - 210, midY - 34, 420, 68, 8);
-        osCtx.fill();
-        osCtx.stroke();
-
-        osCtx.fillStyle = '#38bdf8';
-        osCtx.font = 'bold 13px monospace';
-        osCtx.fillText('⚡ ETAPA 1: INICIALIZANDO THREE.JS WEBGL RENDERER', midX - 190, midY - 10);
-
-        const progStage1 = typingProgress / 0.22;
-        osCtx.fillStyle = 'rgba(56, 189, 248, 0.2)';
-        osCtx.fillRect(midX - 190, midY + 8, 380, 12);
-        osCtx.fillStyle = '#38bdf8';
-        osCtx.fillRect(midX - 190, midY + 8, 380 * progStage1, 12);
-
-      } else if (typingProgress < 0.48) {
-        // ETAPA 2: Uniforms de Schwarzschild (Horizonte de Sucesos y Órbita ISCO)
-        osCtx.fillStyle = '#02040b';
-        osCtx.fillRect(vpX, vpY, vpW, vpH);
-
-        const midX = vpX + vpW / 2;
-        const midY = vpY + vpH / 2;
-
-        // Ondas de gravedad concéntricas
-        const numRings = 7;
-        for (let r = 1; r <= numRings; r++) {
-          const radius = r * 28 + ((time * 30) % 28);
-          const alpha = Math.max(0, 0.6 - radius / 240);
-          osCtx.strokeStyle = `rgba(56, 189, 248, ${alpha.toFixed(2)})`;
-          osCtx.lineWidth = 1.2;
-          osCtx.beginPath();
-          osCtx.arc(midX, midY, radius, 0, Math.PI * 2);
-          osCtx.stroke();
-        }
-
-        // Esfera del Horizonte de Sucesos r_s = 1.0 (Negro Absoluto)
-        const horizonR = 48;
-        const sphereGrad = osCtx.createRadialGradient(midX, midY, 10, midX, midY, horizonR);
-        sphereGrad.addColorStop(0, '#000000');
-        sphereGrad.addColorStop(0.85, '#020308');
-        sphereGrad.addColorStop(1, 'rgba(56, 189, 248, 0.4)');
-        osCtx.fillStyle = sphereGrad;
-        osCtx.beginPath();
-        osCtx.arc(midX, midY, horizonR, 0, Math.PI * 2);
-        osCtx.fill();
-        osCtx.strokeStyle = '#38bdf8';
-        osCtx.lineWidth = 2;
-        osCtx.stroke();
-
-        // Anillo de órbita ISCO (r = 2.2)
-        osCtx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
-        osCtx.lineWidth = 2.5;
-        osCtx.setLineDash([8, 6]);
-        osCtx.beginPath();
-        osCtx.ellipse(midX, midY, 110, 42, -0.15, 0, Math.PI * 2);
-        osCtx.stroke();
-        osCtx.setLineDash([]);
-
-        // HUD informativo Etapa 2
-        osCtx.fillStyle = 'rgba(5, 10, 24, 0.88)';
-        osCtx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
-        osCtx.beginPath();
-        osCtx.roundRect(midX - 220, midY + 95, 440, 50, 8);
-        osCtx.fill();
-        osCtx.stroke();
-
-        osCtx.fillStyle = '#fbbf24';
-        osCtx.font = 'bold 12px monospace';
-        osCtx.fillText('⚡ ETAPA 2: HORIZONTE DE SUCESOS & ÓRBITA ISCO', midX - 200, midY + 116);
-        osCtx.fillStyle = '#94a3b8';
-        osCtx.font = '11px Inter, sans-serif';
-        osCtx.fillText('Radio Schwarzschild r_s = 1.00  |  ISCO fotónico r = 2.20', midX - 200, midY + 134);
-
-      } else if (typingProgress < 0.72) {
-        // ETAPA 3: Curvatura Geodésica de la Luz (Lente gravitacional doblando estrellas sin disco aún)
-        if (bhRenderer && bhScene && bhCamera && bhUniforms) {
-          const dtFrame = Math.min(time - bhLastTime, 0.1);
-          bhLastTime = time;
-
-          bhUniforms.iTime.value = time;
-          (bhUniforms.uTravel.value as THREE.Vector3).addScaledVector(bhTravelVelocity, dtFrame);
-          bhUniforms.uAxisTilt.value = 0.05 * Math.sin(time * 0.35);
-
-          // Disco apagado en etapa 3 para mostrar la lente pura de Einstein
-          bhUniforms.uDiskOuter.value = 0.0;
-          bhUniforms.uExposure.value = 1.1;
-
-          const bhTheta = time * 0.18;
-          const bhPhi = 1.35 + Math.sin(time * 0.22) * 0.06;
-          const bhRadius = 33.0;
-
-          const cPos = bhUniforms.camPos.value as THREE.Vector3;
-          cPos.set(
-            bhRadius * Math.sin(bhPhi) * Math.sin(bhTheta),
-            bhRadius * Math.cos(bhPhi),
-            bhRadius * Math.sin(bhPhi) * Math.cos(bhTheta)
-          );
-
-          const cFwd = bhUniforms.camForward.value as THREE.Vector3;
-          cFwd.copy(cPos).multiplyScalar(-1).normalize();
-
-          const wUp = new THREE.Vector3(0, 1, 0);
-          const cRight = bhUniforms.camRight.value as THREE.Vector3;
-          cRight.crossVectors(cFwd, wUp).normalize();
-
-          const cUp = bhUniforms.camUp.value as THREE.Vector3;
-          cUp.crossVectors(cRight, cFwd).normalize();
-
-          bhRenderer.render(bhScene, bhCamera);
-          osCtx.drawImage(bhCanvas, vpX, vpY, vpW, vpH);
-
-          // HUD Etapa 3
-          osCtx.fillStyle = 'rgba(5, 10, 24, 0.82)';
-          osCtx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
-          osCtx.beginPath();
-          osCtx.roundRect(vpX + 16, vpY + 14, 310, 48, 6);
+          osCtx.roundRect(bx, by, btnW, 40, 11);
           osCtx.fill();
+          osCtx.strokeStyle = '#38bdf8';
+          osCtx.lineWidth = 1.4;
           osCtx.stroke();
-
-          osCtx.fillStyle = '#38bdf8';
-          osCtx.font = 'bold 12px monospace';
-          osCtx.fillText('⚡ ETAPA 3: CURVATURA GEODÉSICA DE LA LUZ', vpX + 28, vpY + 34);
-          osCtx.fillStyle = '#94a3b8';
-          osCtx.font = '10.5px Inter, sans-serif';
-          osCtx.fillText('Desviando campo estelar por métrica relativista', vpX + 28, vpY + 50);
-        }
-
-      } else {
-        // ETAPA 4: ¡Disco de Acreción encendiéndose, Doppler Beaming y simulación completa!
-        if (bhRenderer && bhScene && bhCamera && bhUniforms) {
-          const dtFrame = Math.min(time - bhLastTime, 0.1);
-          bhLastTime = time;
-
-          bhUniforms.iTime.value = time;
-          (bhUniforms.uTravel.value as THREE.Vector3).addScaledVector(bhTravelVelocity, dtFrame);
-          bhUniforms.uAxisTilt.value = 0.05 * Math.sin(time * 0.35);
-
-          // Expansión fluida del disco de acreción al compilar las fórmulas
-          const diskProgress = Math.min(1, (typingProgress - 0.72) / 0.25);
-          bhUniforms.uDiskOuter.value = 2.2 + diskProgress * (19.5 - 2.2);
-          bhUniforms.uExposure.value = 0.9 + diskProgress * 0.6;
-
-          const bhTheta = time * 0.18;
-          const bhPhi = 1.35 + Math.sin(time * 0.22) * 0.06;
-          const bhRadius = 33.0;
-
-          const cPos = bhUniforms.camPos.value as THREE.Vector3;
-          cPos.set(
-            bhRadius * Math.sin(bhPhi) * Math.sin(bhTheta),
-            bhRadius * Math.cos(bhPhi),
-            bhRadius * Math.sin(bhPhi) * Math.cos(bhTheta)
-          );
-
-          const cFwd = bhUniforms.camForward.value as THREE.Vector3;
-          cFwd.copy(cPos).multiplyScalar(-1).normalize();
-
-          const wUp = new THREE.Vector3(0, 1, 0);
-          const cRight = bhUniforms.camRight.value as THREE.Vector3;
-          cRight.crossVectors(cFwd, wUp).normalize();
-
-          const cUp = bhUniforms.camUp.value as THREE.Vector3;
-          cUp.crossVectors(cRight, cFwd).normalize();
-
-          bhRenderer.render(bhScene, bhCamera);
-          osCtx.drawImage(bhCanvas, vpX, vpY, vpW, vpH);
-
-          // Telemetría HUD completa en vivo
-          osCtx.fillStyle = 'rgba(5, 10, 24, 0.8)';
-          osCtx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+          osCtx.fillStyle = '#ffffff';
+        } else {
+          osCtx.fillStyle = 'rgba(30, 41, 59, 0.85)';
+          osCtx.beginPath();
+          osCtx.roundRect(bx, by, btnW, 40, 11);
+          osCtx.fill();
+          osCtx.strokeStyle = 'rgba(71, 85, 105, 0.6)';
           osCtx.lineWidth = 1;
-
-          osCtx.beginPath();
-          osCtx.roundRect(vpX + 16, vpY + 14, 275, 46, 6);
-          osCtx.fill();
           osCtx.stroke();
-
-          osCtx.fillStyle = '#fbbf24';
-          osCtx.font = 'bold 12px Inter, monospace';
-          osCtx.fillText('GARGANTUA // SCHWARZSCHILD 3D', vpX + 28, vpY + 32);
-
-          osCtx.fillStyle = '#94a3b8';
-          osCtx.font = '10px Inter, sans-serif';
-          osCtx.fillText('Curvatura Espacio-Tiempo • Geodesic Raymarching', vpX + 28, vpY + 48);
-
-          // Badge superior derecha: WEBGL 60 FPS
-          osCtx.beginPath();
-          osCtx.roundRect(vpX + vpW - 140, vpY + 14, 124, 26, 6);
-          osCtx.fill();
-          osCtx.stroke();
-
-          osCtx.fillStyle = '#10b981';
-          osCtx.beginPath();
-          osCtx.arc(vpX + vpW - 126, vpY + 27, 4, 0, Math.PI * 2);
-          osCtx.fill();
-
-          osCtx.fillStyle = '#f8fafc';
-          osCtx.font = 'bold 10.5px monospace';
-          osCtx.fillText('WEBGL 60 FPS', vpX + vpW - 114, vpY + 31);
-
-          // Barra de telemetría inferior
-          osCtx.beginPath();
-          osCtx.roundRect(vpX + 16, vpY + vpH - 46, vpW - 32, 34, 6);
-          osCtx.fill();
-          osCtx.stroke();
-
-          osCtx.fillStyle = '#38bdf8';
-          osCtx.font = '11px monospace';
-          osCtx.fillText(
-            'r_s: 1.00  |  ISCO: 2.20  |  Disco: 19.50  |  Doppler Beaming: 1.8x  |  Lente Gravitacional Activa',
-            vpX + 26,
-            vpY + vpH - 24
-          );
+          osCtx.fillStyle = '#cbd5e1';
         }
-      }
 
-      osCtx.restore();
+        osCtx.font = isActive ? 'bold 12px "Plus Jakarta Sans", sans-serif' : '600 11.5px "Plus Jakarta Sans", sans-serif';
+        osCtx.textAlign = 'center';
+        osCtx.fillText(`${act.icon} ${act.label}`, bx + btnW / 2, by + 25);
+        osCtx.textAlign = 'left';
+      });
     }
 
     function drawMatrixMode(w: number, h: number) {
@@ -2344,7 +2826,9 @@ const Computer3D: React.FC = () => {
       }
 
       if (state.screenMode === 0) {
-        drawLiveWebCodingMode(w, h, time);
+        drawRobot3DScreen(w, h, time);
+        screenTexture.needsUpdate = true;
+        return;
       } else if (state.screenMode === 1) {
         drawMatrixMode(w, h);
       } else if (state.screenMode === 2) {
@@ -2692,15 +3176,14 @@ const Computer3D: React.FC = () => {
       if (soundEngine.ctx) {
         soundEngine.ctx.close().catch(() => {});
       }
-      if (bhRenderer) {
-        bhRenderer.dispose();
+      if (robotRenderer) {
+        robotRenderer.dispose();
       }
-      if (bhMaterial) {
-        bhMaterial.dispose();
-      }
-      if (bhMesh) {
-        bhMesh.geometry.dispose();
-      }
+      robotDisposables.forEach((d) => {
+        try {
+          d.dispose();
+        } catch {}
+      });
       renderer.dispose();
     };
   }, []);
