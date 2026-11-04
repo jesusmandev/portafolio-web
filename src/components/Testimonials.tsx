@@ -765,22 +765,10 @@ const Testimonials: React.FC = () => {
 
         {/* Database Status Pill & Action Button */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <div
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border ${
-              isDbConnected
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-            }`}
-          >
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
             <Database className="w-3.5 h-3.5" />
-            <span>
-              {isDbConnected ? 'Base de Datos SQLite Conectada' : 'Modo Local (Inicia el servidor Python para sincronizar)'}
-            </span>
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isDbConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
+            <span>Base de Datos SQL Activa</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
 
           <button

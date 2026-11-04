@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: testimonials-sql-api
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: "python server.py"
+    rootDir: backend
+    envVars:
+      - key: PORT
+        value: 10000
