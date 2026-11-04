@@ -554,7 +554,7 @@ class TestimonialsHandler(BaseHTTPRequestHandler):
 
             # Si coincide, se elimina de SQL
             cursor.execute("DELETE FROM testimonials WHERE id = ?", (testimonial_id,))
-            conn.commit()
+            conn.commit()                                        
             conn.close()
 
             self._set_headers(200)

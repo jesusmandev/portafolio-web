@@ -17,6 +17,46 @@ const Projects: React.FC = () => {
   const projects: Project[] = [
     {
       id: 1,
+      title: 'Agujero Negro 3D (Gargantua)',
+      category: '3D & RAYMARCHING',
+      categoryColor: '#38bdf8',
+      description: 'Simulación 3D interactiva hiperrealista con curvatura gravitacional, disco de acreción y raymarching geodésico.',
+      image: `${import.meta.env.BASE_URL}projects/black-hole.png`,
+      codeLink: 'https://github.com/jesusmandev/3D-Black-Hole.git',
+      webLink: 'https://jesusmandev.github.io/3D-Black-Hole/',
+    },
+    {
+      id: 2,
+      title: 'Clon de Gemini IA',
+      category: 'INTELIGENCIA ARTIFICIAL',
+      categoryColor: '#818cf8',
+      description: 'Interfaz conversacional avanzada inspirada en Google Gemini con diseño moderno y respuestas fluidas.',
+      image: `${import.meta.env.BASE_URL}projects/gemini-clone.png`,
+      codeLink: 'https://github.com/jesusmandev/gemini-clone.git',
+      webLink: 'https://agent-6a8492e1e0a9504b48d47baf--gemini-clonado.netlify.app/',
+    },
+    {
+      id: 3,
+      title: 'Hotel Boutique Thalassa',
+      category: 'HOTEL & SPA',
+      categoryColor: '#f59e0b',
+      description: 'Landing page premium para resort y hotel de lujo con catálogo de suites y diseño editorial exclusivo.',
+      image: `${import.meta.env.BASE_URL}projects/hotel-thalassa.png`,
+      codeLink: 'https://github.com/jesusmandev/landing-page-hotel.git',
+      webLink: 'https://jesusmandev.github.io/landing-page-hotel/',
+    },
+    {
+      id: 4,
+      title: 'Sistema Solar 3D',
+      category: 'SIMULACIÓN 3D',
+      categoryColor: '#ec4899',
+      description: 'Explorador astronómico interactivo con planetas, órbitas a escala, iluminación y texturas celestes.',
+      image: `${import.meta.env.BASE_URL}projects/solar-system.png`,
+      codeLink: 'https://github.com/jesusmandev/solar-sistem.git',
+      webLink: 'https://jesusmandev.github.io/solar-sistem/',
+    },
+    {
+      id: 5,
       title: 'Tienda de Cuentas Streaming',
       category: 'APLICACIÓN WEB',
       categoryColor: '#f59e0b',
@@ -26,7 +66,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/platform-to-sell-streaming-accounts/',
     },
     {
-      id: 2,
+      id: 6,
       title: 'Menú de Comida Mundial',
       category: 'COMIDA',
       categoryColor: '#f59e0b',
@@ -36,7 +76,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/WorldMenu/',
     },
     {
-      id: 3,
+      id: 7,
       title: 'Juego del Ahorcado',
       category: 'GAME',
       categoryColor: '#22c55e',
@@ -46,7 +86,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/Hangman-game/',
     },
     {
-      id: 4,
+      id: 8,
       title: 'Aplicación de GIFs',
       category: 'APP',
       categoryColor: '#a855f7',
@@ -56,7 +96,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/GIF-app/',
     },
     {
-      id: 5,
+      id: 9,
       title: 'Tarjeta de San Valentín',
       category: 'DISEÑO',
       categoryColor: '#ec4899',
@@ -66,7 +106,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/valentine-card/',
     },
     {
-      id: 6,
+      id: 10,
       title: 'Simulador Prelcfes',
       category: 'EDUCACIÓN',
       categoryColor: '#6366f1',
@@ -76,7 +116,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/simulator/',
     },
     {
-      id: 7,
+      id: 11,
       title: 'Calculadora',
       category: 'UTILIDAD',
       categoryColor: '#f59e0b',
@@ -86,7 +126,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/calculadora/',
     },
     {
-      id: 8,
+      id: 12,
       title: 'Cafés Colombianos',
       category: 'COLOMBIA ☕',
       categoryColor: '#f59e0b',
@@ -96,7 +136,7 @@ const Projects: React.FC = () => {
       webLink: 'https://jesusmandev.github.io/CAFES-COLOMBIANOS/',
     },
     {
-      id: 9,
+      id: 13,
       title: 'Landing Page de Hamburguesa',
       category: 'LANDING PAGE',
       categoryColor: '#ef4444',
@@ -106,7 +146,7 @@ const Projects: React.FC = () => {
       webLink: 'https://agent-6a1ac44517acbb0fc92284c3--burger-jesu.netlify.app/',
     },
     {
-      id: 10,
+      id: 14,
       title: 'Landing Page de Motocicleta',
       category: 'LANDING PAGE',
       categoryColor: '#3b82f6',
