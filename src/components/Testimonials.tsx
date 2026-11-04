@@ -35,7 +35,7 @@ export interface Testimonial {
   comment: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/testimonials';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://portafolio-web-w0t1.onrender.com/api/testimonials';
 const TOKENS_STORAGE_KEY = 'jesusman_my_testimonial_tokens';
 const CACHE_STORAGE_KEY = 'jesusman_cached_testimonials';
 
