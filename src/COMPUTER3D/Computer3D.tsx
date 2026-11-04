@@ -1163,10 +1163,38 @@ const Computer3D: React.FC = () => {
       robotShadowDisc.position.set(0, -1.96, 0);
       robotScene.add(robotShadowDisc);
 
-      // 7. CÁMARA E ILUMINACIÓN
+      // 7. FONDO OSCURO PROCEDIMENTAL EN GPU Y CÁMARA CENTRADA
+      const bgGeo = new THREE.PlaneGeometry(28, 16);
+      const bgMat = new THREE.ShaderMaterial({
+        depthWrite: false,
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          varying vec2 vUv;
+          void main() {
+            float dist = distance(vUv, vec2(0.5, 0.48)) * 1.32;
+            vec3 colCenter = vec3(0.118, 0.161, 0.231); // #1e293b
+            vec3 colMid    = vec3(0.059, 0.090, 0.165); // #0f172a
+            vec3 colEdge   = vec3(0.008, 0.024, 0.090); // #020617
+            vec3 col = mix(colCenter, colMid, smoothstep(0.0, 0.65, dist));
+            col = mix(col, colEdge, smoothstep(0.65, 1.15, dist));
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `
+      });
+      robotDisposables.push(bgGeo, bgMat);
+      const bgMesh = new THREE.Mesh(bgGeo, bgMat);
+      bgMesh.position.set(0, 0, -4.5);
+      robotScene.add(bgMesh);
+
       robotCamera = new THREE.PerspectiveCamera(32, robotCanvas.width / robotCanvas.height, 0.1, 100);
-      robotCamera.position.set(0, 0.15, 7.2);
-      robotCamera.lookAt(0, 0.06, 0);
+      robotCamera.position.set(0, 0.10, 6.6);
+      robotCamera.lookAt(0, -0.05, 0);
 
       const ambLight = new THREE.AmbientLight(0xffffff, 0.95);
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
@@ -1848,7 +1876,7 @@ const Computer3D: React.FC = () => {
       logoBar.position.set(0, -screenHeight / 2 + chinHeight / 2, chassisDepth / 2 + 0.006);
       panelGroup.add(logoBar);
 
-      screenTexture = new THREE.CanvasTexture(osCanvas);
+      screenTexture = new THREE.CanvasTexture(robotCanvas);
       screenTexture.minFilter = THREE.LinearFilter;
       screenTexture.magFilter = THREE.LinearFilter;
 
@@ -2445,35 +2473,10 @@ const Computer3D: React.FC = () => {
       });
     }
 
-    function drawRobot3DScreen(w: number, h: number, time: number) {
+    function drawRobot3DScreen(_w: number, _h: number, time: number) {
       if (!robotRenderer || !robotScene || !robotCamera) return;
 
-      // 1. Fondo oscuro con degradado radial de alta gama solicitado
-      const bgGrad = osCtx.createRadialGradient(w * 0.5, h * 0.44, 20, w * 0.5, h * 0.44, w * 0.72);
-      bgGrad.addColorStop(0, '#1e293b');
-      bgGrad.addColorStop(0.55, '#0f172a');
-      bgGrad.addColorStop(1, '#020617');
-      osCtx.fillStyle = bgGrad;
-      osCtx.fillRect(0, 0, w, h);
-
-      // Cuadrícula tecnológica sutil
-      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
-      osCtx.lineWidth = 1;
-      const gridStep = 48;
-      for (let x = 0; x < w; x += gridStep) {
-        osCtx.beginPath();
-        osCtx.moveTo(x, 0);
-        osCtx.lineTo(x, h);
-        osCtx.stroke();
-      }
-      for (let y = 0; y < h; y += gridStep) {
-        osCtx.beginPath();
-        osCtx.moveTo(0, y);
-        osCtx.lineTo(w, y);
-        osCtx.stroke();
-      }
-
-      // 2. Ciclo automático de expresiones cada 4.8 segundos
+      // 1. Ciclo automático de expresiones cada 4.8 segundos
       const cycleLength = 4.8;
       const currentActionIdx = Math.floor(time / cycleLength) % robotState.actionsList.length;
       if (currentActionIdx !== robotState.actionIndex) {
@@ -2481,7 +2484,7 @@ const Computer3D: React.FC = () => {
         setRobotAction(robotState.actionsList[currentActionIdx].id);
       }
 
-      // 3. Físicas elásticas (Squash & Stretch)
+      // 2. Físicas elásticas ultra fluidas (Squash & Stretch)
       robotState.squishAmount += robotState.squishVelocity;
       robotState.squishVelocity -= robotState.squishAmount * 0.28;
       robotState.squishVelocity *= 0.82;
@@ -2491,7 +2494,7 @@ const Computer3D: React.FC = () => {
       const scaleXZ = 1 + robotState.squishAmount * 0.18;
       robotGroup.scale.set(scaleXZ, scaleY, scaleXZ);
 
-      // 4. Levitación suave y sombra
+      // 3. Levitación suave y sombra
       const hoverSpeed = robotState.action === 'sleep' ? 1.2 : 2.2;
       const hoverAmp = robotState.action === 'sleep' ? 0.05 : 0.09;
       const hoverOffset = Math.sin(time * hoverSpeed) * hoverAmp;
@@ -2500,7 +2503,7 @@ const Computer3D: React.FC = () => {
       const shadowScale = 1 - hoverOffset * 0.35;
       robotShadowDisc.scale.set(1.25 * shadowScale, 1, 0.42 * shadowScale);
 
-      // 5. Parpadeo de ojos
+      // 4. Parpadeo orgánico de ojos
       robotState.blinkTimer += 0.016;
       if (robotState.blinkTimer > 3.6) {
         robotState.isBlinking = true;
@@ -2510,7 +2513,7 @@ const Computer3D: React.FC = () => {
         }
       }
 
-      // 6. Mirada procedimental fluida (el robot mira alrededor de la habitación)
+      // 5. Mirada procedimental fluida (el robot explora su entorno con curiosidad)
       robotState.lookX += (Math.sin(time * 0.7) * 0.22 - robotState.lookX) * 0.06;
       robotState.lookY += (Math.cos(time * 0.9) * 0.12 - robotState.lookY) * 0.06;
 
@@ -2527,7 +2530,7 @@ const Computer3D: React.FC = () => {
       let mouthScaleX = 1;
       let mouthScaleY = 1;
 
-      // Movimientos de animación según la acción activa
+      // Animaciones cinemáticas según el estado
       if (robotState.action === 'wave') {
         targetRightArmZ = 2.25 + Math.sin(time * 11) * 0.25;
         targetRightArmX = -0.18;
@@ -2599,137 +2602,8 @@ const Computer3D: React.FC = () => {
       robotLeftArmPivot.rotation.x += (targetLeftArmX - robotLeftArmPivot.rotation.x) * 0.12;
       robotRightArmPivot.rotation.x += (targetRightArmX - robotRightArmPivot.rotation.x) * 0.12;
 
-      // 7. Renderizar Robot 3D en el offscreen WebGL Canvas
+      // 6. Renderizar Robot 3D directamente en el offscreen WebGL Canvas sin sobrecoste de textos 2D
       robotRenderer.render(robotScene, robotCamera);
-
-      // 8. Pintar el robot centrado en pantalla completa sobre el monitor
-      osCtx.drawImage(robotCanvas, 0, 0, w, h);
-
-      // 9. Barra Superior Estilo Glassmorphism
-      const topBarY = 22;
-      osCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      osCtx.strokeStyle = 'rgba(51, 65, 85, 0.85)';
-      osCtx.lineWidth = 1.2;
-      osCtx.beginPath();
-      osCtx.roundRect(28, topBarY, 275, 48, 14);
-      osCtx.fill();
-      osCtx.stroke();
-
-      const pingPulse = Math.sin(time * 4) * 0.5 + 0.5;
-      osCtx.fillStyle = `rgba(34, 211, 238, ${0.25 + pingPulse * 0.4})`;
-      osCtx.beginPath();
-      osCtx.arc(50, topBarY + 24, 9 + pingPulse * 3, 0, Math.PI * 2);
-      osCtx.fill();
-      osCtx.fillStyle = '#06b6d4';
-      osCtx.beginPath();
-      osCtx.arc(50, topBarY + 24, 5.5, 0, Math.PI * 2);
-      osCtx.fill();
-
-      osCtx.fillStyle = '#f8fafc';
-      osCtx.font = 'bold 15px "Plus Jakarta Sans", Inter, sans-serif';
-      osCtx.fillText('Bot Asistente 3D', 72, topBarY + 22);
-
-      osCtx.fillStyle = '#38bdf8';
-      osCtx.font = 'bold 10px monospace';
-      osCtx.fillText('ONLINE // TOCA PARA INTERACTUAR', 72, topBarY + 38);
-
-      // Panel superior derecho con selector de estilos
-      osCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      osCtx.beginPath();
-      osCtx.roundRect(w - 380, topBarY, 352, 48, 14);
-      osCtx.fill();
-      osCtx.stroke();
-
-      osCtx.fillStyle = '#0284c7';
-      osCtx.beginPath();
-      osCtx.roundRect(w - 372, topBarY + 7, 130, 34, 10);
-      osCtx.fill();
-      osCtx.fillStyle = '#ffffff';
-      osCtx.font = 'bold 12px "Plus Jakarta Sans", Inter, sans-serif';
-      osCtx.fillText('🎨 Ilustración 2.5D', w - 362, topBarY + 28);
-
-      osCtx.fillStyle = 'rgba(30, 41, 59, 0.9)';
-      osCtx.beginPath();
-      osCtx.roundRect(w - 232, topBarY + 7, 95, 34, 10);
-      osCtx.fill();
-      osCtx.fillStyle = '#94a3b8';
-      osCtx.fillText('✒️ Contorno', w - 222, topBarY + 28);
-
-      osCtx.beginPath();
-      osCtx.roundRect(w - 128, topBarY + 7, 92, 34, 10);
-      osCtx.fill();
-      osCtx.fillText('✨ Vinilo 3D', w - 120, topBarY + 28);
-
-      // 10. Globo Toast de Reacción (en la parte superior central)
-      const toastW = 260;
-      const toastH = 40;
-      const toastX = (w - toastW) / 2;
-      const toastY = 82;
-      osCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-      osCtx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-      osCtx.lineWidth = 1.2;
-      osCtx.beginPath();
-      osCtx.roundRect(toastX, toastY, toastW, toastH, 20);
-      osCtx.fill();
-      osCtx.stroke();
-
-      osCtx.fillStyle = '#38bdf8';
-      osCtx.font = 'bold 13.5px "Plus Jakarta Sans", Inter, sans-serif';
-      osCtx.textAlign = 'center';
-      osCtx.fillText(`${robotState.toastEmoji}  ${robotState.toastText}`, w / 2, toastY + 25);
-      osCtx.textAlign = 'left';
-
-      // 11. Dock inferior con todas las expresiones y animaciones
-      const dockW = 860;
-      const dockH = 58;
-      const dockX = (w - dockW) / 2;
-      const dockY = h - dockH - 22;
-
-      osCtx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-      osCtx.strokeStyle = 'rgba(51, 65, 85, 0.85)';
-      osCtx.lineWidth = 1.2;
-      osCtx.beginPath();
-      osCtx.roundRect(dockX, dockY, dockW, dockH, 18);
-      osCtx.fill();
-      osCtx.stroke();
-
-      const btnW = 98;
-      const btnGap = 8;
-      const startBtnX = dockX + (dockW - (robotState.actionsList.length * btnW + (robotState.actionsList.length - 1) * btnGap)) / 2;
-
-      robotState.actionsList.forEach((act, idx) => {
-        const bx = startBtnX + idx * (btnW + btnGap);
-        const by = dockY + 9;
-        const isActive = robotState.action === act.id;
-
-        if (isActive) {
-          const btnGrad = osCtx.createLinearGradient(bx, by, bx + btnW, by + 40);
-          btnGrad.addColorStop(0, '#06b6d4');
-          btnGrad.addColorStop(1, '#0284c7');
-          osCtx.fillStyle = btnGrad;
-          osCtx.beginPath();
-          osCtx.roundRect(bx, by, btnW, 40, 11);
-          osCtx.fill();
-          osCtx.strokeStyle = '#38bdf8';
-          osCtx.lineWidth = 1.4;
-          osCtx.stroke();
-          osCtx.fillStyle = '#ffffff';
-        } else {
-          osCtx.fillStyle = 'rgba(30, 41, 59, 0.85)';
-          osCtx.beginPath();
-          osCtx.roundRect(bx, by, btnW, 40, 11);
-          osCtx.fill();
-          osCtx.strokeStyle = 'rgba(71, 85, 105, 0.6)';
-          osCtx.lineWidth = 1;
-          osCtx.stroke();
-          osCtx.fillStyle = '#cbd5e1';
-        }
-
-        osCtx.font = isActive ? 'bold 12px "Plus Jakarta Sans", sans-serif' : '600 11.5px "Plus Jakarta Sans", sans-serif';
-        osCtx.textAlign = 'center';
-        osCtx.fillText(`${act.icon} ${act.label}`, bx + btnW / 2, by + 25);
-        osCtx.textAlign = 'left';
-      });
     }
 
     function drawMatrixMode(w: number, h: number) {
@@ -3127,10 +3001,8 @@ const Computer3D: React.FC = () => {
         }
       });
 
-      // Actualizar textura 2D del monitor cada 4 frames (~15 FPS) ahorrando el 60% de ancho de banda GPU
-      if (frameTick % 4 === 1) {
-        renderMonitorScreen(state.time);
-      }
+      // Renderizar el Robot 3D a 60 FPS ultra fluidos
+      renderMonitorScreen(state.time);
       updateCameraPosition();
       renderer.render(scene, camera);
     }
