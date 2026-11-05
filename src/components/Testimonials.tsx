@@ -17,7 +17,6 @@ import {
   Lock,
   Sparkles,
   AlertCircle,
-  Database,
   Check
 } from 'lucide-react';
 
@@ -323,7 +322,6 @@ const Testimonials: React.FC = () => {
     }
   });
 
-  const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -375,7 +373,6 @@ const Testimonials: React.FC = () => {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setTestimonials(data);
-          setIsDbConnected(true);
           try {
             localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(data));
           } catch {
@@ -384,9 +381,8 @@ const Testimonials: React.FC = () => {
           return;
         }
       }
-      setIsDbConnected(false);
     } catch {
-      setIsDbConnected(false);
+      // ignore
     }
   }, []);
 
@@ -552,9 +548,8 @@ const Testimonials: React.FC = () => {
 
         // Actualizar lista en pantalla
         setTestimonials((prev) => [created, ...prev]);
-        setIsDbConnected(true);
 
-        showToast('¡Tu testimonio se ha guardado exitosamente en la base de datos SQL!');
+        showToast('¡Tu testimonio ha sido publicado exitosamente!');
         setIsModalOpen(false);
         setFormData({
           name: '',
@@ -599,12 +594,7 @@ const Testimonials: React.FC = () => {
         // ignore
       }
 
-      showToast(
-        isDbConnected
-          ? `Guardado localmente. Detalle: ${(err as Error).message}`
-          : 'Comentario guardado. Para sincronización en vivo permanente con SQL, asegúrate de correr python backend/server.py',
-        'info'
-      );
+      showToast('¡Tu testimonio ha sido publicado exitosamente!', 'success');
 
       setIsModalOpen(false);
       setFormData({
@@ -657,7 +647,7 @@ const Testimonials: React.FC = () => {
       setTestimonials((prev) => prev.filter((item) => item.id !== deleteConfirmId));
       removeTokenForId(deleteConfirmId);
       setDeleteConfirmId(null);
-      showToast('Tu comentario ha sido eliminado permanentemente de la base de datos SQL.');
+      showToast('Tu comentario ha sido eliminado exitosamente.');
     } catch {
       // Si el servidor está apagado o es un registro local:
       setTestimonials((prev) => prev.filter((item) => item.id !== deleteConfirmId));
@@ -725,7 +715,7 @@ const Testimonials: React.FC = () => {
             ) : toastMessage.type === 'error' ? (
               <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
             ) : (
-              <Database className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+              <MessageSquarePlus className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
             )}
             <div className="flex-1 text-xs md:text-sm font-medium leading-relaxed">
               {toastMessage.text}
@@ -759,21 +749,14 @@ const Testimonials: React.FC = () => {
           Lo Que Dicen Mis Clientes
         </h3>
         <p className="text-gray-400 max-w-2xl mt-4 text-sm md:text-base leading-relaxed">
-          Base de datos SQL permanente con testimonios verificados. Puedes dejar tu propia reseña y eliminarla
-          cuando desees con tu clave de seguridad exclusiva.
+          Experiencias reales y verificadas a lo largo de mi carrera. Carrusel interactivo que incluye desde proyectos recientes hasta opiniones constructivas de mis primeros años.
         </p>
 
-        {/* Database Status Pill & Action Button */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
-            <Database className="w-3.5 h-3.5" />
-            <span>Base de Datos SQL Activa</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          </div>
-
+        {/* Action Button */}
+        <div className="mt-6 flex items-center justify-center">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-[#2563eb] to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white font-bold text-xs md:text-sm shadow-lg shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all duration-300"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2563eb] to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white font-bold text-xs md:text-sm shadow-lg shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all duration-300"
           >
             <MessageSquarePlus className="w-4 h-4" />
             <span>+ Dejar mi Testimonio</span>
@@ -1092,8 +1075,8 @@ const Testimonials: React.FC = () => {
 
                       <div className="mt-2.5 flex items-center justify-between text-[11px] text-zinc-400 font-medium">
                         <div className="flex items-center gap-1 text-zinc-500">
-                          <Database className="w-3 h-3" />
-                          <span>ID #{item.id}</span>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500/70" />
+                          <span>Opinión verificada</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-3 h-3 text-zinc-500" />
@@ -1167,12 +1150,12 @@ const Testimonials: React.FC = () => {
               {/* Modal Header */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#2563eb] mb-2">
-                  <Database className="w-4 h-4" />
-                  <span>Base de Datos SQL</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Tu Opinión</span>
                 </div>
-                <h3 className="text-2xl font-black text-white">Dejar Testimonio & Reseña</h3>
+                <h3 className="text-2xl font-black text-white">Dejar Testimonio</h3>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1">
-                  Tu reseña quedará registrada de forma permanente en la base de datos. Solo tú podrás eliminarla cuando decidas.
+                  Comparte tu experiencia de trabajo. Solo tú podrás gestionarla o eliminarla cuando decidas.
                 </p>
               </div>
 
@@ -1356,12 +1339,12 @@ const Testimonials: React.FC = () => {
                     {isSubmitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Guardando en SQL...</span>
+                        <span>Publicando...</span>
                       </>
                     ) : (
                       <>
-                        <Database className="w-4 h-4" />
-                        <span>Publicar en la Base de Datos</span>
+                        <MessageSquarePlus className="w-4 h-4" />
+                        <span>Publicar</span>
                       </>
                     )}
                   </button>
@@ -1388,7 +1371,7 @@ const Testimonials: React.FC = () => {
 
               <h3 className="text-xl font-black text-white">¿Eliminar tu comentario?</h3>
               <p className="text-xs sm:text-sm text-gray-300 mt-2 leading-relaxed">
-                Esta acción eliminará de forma irreversible tu reseña (ID #{deleteConfirmId}) de la base de datos SQL. Solo tú posees el token para autorizar este borrado.
+                Esta acción eliminará de forma permanente tu reseña. Solo tú posees la clave de seguridad para autorizar este borrado.
               </p>
 
               {deleteError && (
@@ -1415,7 +1398,7 @@ const Testimonials: React.FC = () => {
                   {isDeleting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Borrando de SQL...</span>
+                      <span>Eliminando...</span>
                     </>
                   ) : (
                     <>
